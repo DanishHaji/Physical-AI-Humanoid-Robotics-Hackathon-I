@@ -1,0 +1,316 @@
+openapi: 3.0.0
+info:
+  title: Physical AI Textbook RAG API
+  version: 1.0.0
+  description: |
+    REST API for the AI-Native Physical AI & Humanoid Robotics textbook chatbot.
+    Provides retrieval-augmented generation (RAG) for answering questions from textbook content only.
+  contact:
+    name: API Support
+    email: support@example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api-textbook.vercel.app
+    description: Production server (Vercel)
+  - url: http://localhost:8000
+    description: Local development server
+
+tags:
+  - name: Query
+    description: Chatbot query endpoints
+  - name: Health
+    description: Health check and status endpoints
+
+paths:
+  /query:
+    post:
+      summary: Submit query to RAG chatbot
+      description: |
+        Submit a natural language question to the chatbot. The system will:
+        1. Detect query mode (explain, code, urdu, exam) or use user-specified mode
+        2. Generate embedding for the question
+        3. Retrieve top-k relevant chunks from Qdrant vector database
+        4. Generate answer using OpenAI GPT-4o-mini with retrieved context only
+        5. Return answer with citations to specific chapter sections
+      tags:
+        - Query
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+            examples:
+              explain_query:
+                summary: Explain mode query
+                value:
+                  question: "What is URDF in ROS 2?"
+                  mode: "auto"
+              code_query:
+                summary: Code mode query
+                value:
+                  question: "Show me how to create a ROS 2 publisher in Python"
+                  mode: "code"
+              contextual_query:
+                summary: Contextual query with selected text
+                value:
+                  question: "Explain this in simpler terms"
+                  selected_text: "The Unified Robot Description Format (URDF) is an XML specification to describe a robot's physical structure..."
+                  mode: "auto"
+      responses:
+        '200':
+          description: Successful response with answer and citations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+              examples:
+                successful_answer:
+                  summary: Successful answer with citations
+                  value:
+                    answer: "URDF (Unified Robot Description Format) is an XML-based format used in ROS 2 to describe the physical structure of a robot. It defines links (rigid bodies), joints (connections between links), visual properties, collision geometries, and inertial properties. URDF files are essential for robot simulation in Gazebo and visualization in RViz."
+                    citations:
+                      - chapter: "ROS 2 Fundamentals"
+                        section: "URDF for Humanoids"
+                        url: "/docs/module-01-ros2/week-02-nodes-topics#urdf-for-humanoids"
+                      - chapter: "Digital Twin Simulation"
+                        section: "Robot Models in Gazebo"
+                        url: "/docs/module-02-digital-twin/week-05-gazebo-basics#robot-models-in-gazebo"
+                    mode_detected: "explain"
+                    response_time_ms: 1850
+                no_results_found:
+                  summary: No relevant results found
+                  value:
+                    answer: "I couldn't find relevant information in the textbook for your question about drone navigation. This textbook focuses on humanoid robotics and Physical AI. Try rephrasing your question or check the table of contents for available topics."
+                    citations: []
+                    mode_detected: "explain"
+                    response_time_ms: 650
+        '400':
+          description: Invalid request (e.g., question too long, invalid mode)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                question_too_long:
+                  summary: Question exceeds 500 characters
+                  value:
+                    error: "Bad Request"
+                    message: "Question text must be between 1 and 500 characters"
+                    code: "INVALID_QUESTION_LENGTH"
+        '429':
+          description: Rate limit exceeded (100 requests/hour/IP)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                rate_limit:
+                  summary: Rate limit exceeded
+                  value:
+                    error: "Too Many Requests"
+                    message: "Rate limit exceeded. Please wait 45 minutes before next query."
+                    code: "RATE_LIMIT_EXCEEDED"
+                    retry_after_seconds: 2700
+        '500':
+          description: Internal server error (e.g., OpenAI API failure, Qdrant unavailable)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                server_error:
+                  summary: Internal server error
+                  value:
+                    error: "Internal Server Error"
+                    message: "An unexpected error occurred. Please try again in a moment."
+                    code: "INTERNAL_ERROR"
+
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Check if the API and its dependencies (Qdrant, Neon, OpenAI) are operational
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded]
+                  timestamp:
+                    type: string
+                    format: date-time
+                  services:
+                    type: object
+                    properties:
+                      qdrant:
+                        type: string
+                        enum: [operational, down]
+                      neon:
+                        type: string
+                        enum: [operational, down]
+                      openai:
+                        type: string
+                        enum: [operational, down]
+              examples:
+                all_healthy:
+                  summary: All services operational
+                  value:
+                    status: "healthy"
+                    timestamp: "2025-12-04T10:30:00Z"
+                    services:
+                      qdrant: "operational"
+                      neon: "operational"
+                      openai: "operational"
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    QueryRequest:
+      type: object
+      required:
+        - question
+      properties:
+        question:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: User's natural language question
+          example: "What is URDF in ROS 2?"
+        selected_text:
+          type: string
+          maxLength: 2000
+          description: Optional text selected by user for "Ask AI about this" feature. Provides additional context for the query.
+          example: "The Unified Robot Description Format (URDF)..."
+        mode:
+          type: string
+          enum: [auto, explain, code, urdu, exam]
+          default: auto
+          description: |
+            Query mode:
+            - `auto`: Automatically detect mode from question keywords
+            - `explain`: Focus on conceptual explanations
+            - `code`: Prioritize code examples and implementation details
+            - `urdu`: Retrieve from Urdu-translated content (if available)
+            - `exam`: Format response for assessment/quiz context
+
+    QueryResponse:
+      type: object
+      required:
+        - answer
+        - citations
+        - mode_detected
+        - response_time_ms
+      properties:
+        answer:
+          type: string
+          description: Generated answer using retrieved textbook context. If no relevant content found, returns helpful message directing user to available topics.
+          example: "URDF (Unified Robot Description Format) is an XML-based format used in ROS 2 to describe the physical structure of a robot..."
+        citations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Citation'
+          description: List of chapter sections referenced in the answer. Empty array if no relevant content found.
+        mode_detected:
+          type: string
+          enum: [explain, code, urdu, exam]
+          description: The mode used to generate the answer (either auto-detected or user-specified)
+          example: "explain"
+        response_time_ms:
+          type: integer
+          minimum: 1
+          maximum: 10000
+          description: Total pipeline latency in milliseconds (embed + search + generate)
+          example: 1850
+
+    Citation:
+      type: object
+      required:
+        - chapter
+        - section
+        - url
+      properties:
+        chapter:
+          type: string
+          description: Chapter title where the information was found
+          example: "ROS 2 Fundamentals"
+        section:
+          type: string
+          description: Specific section heading within the chapter
+          example: "URDF for Humanoids"
+        url:
+          type: string
+          format: uri-reference
+          description: Relative URL to the chapter section (includes anchor link)
+          example: "/docs/module-01-ros2/week-02-nodes-topics#urdf-for-humanoids"
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+        - code
+      properties:
+        error:
+          type: string
+          description: HTTP error name
+          example: "Bad Request"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Question text must be between 1 and 500 characters"
+        code:
+          type: string
+          description: Machine-readable error code for client handling
+          enum:
+            - INVALID_QUESTION_LENGTH
+            - INVALID_MODE
+            - MISSING_QUESTION
+            - RATE_LIMIT_EXCEEDED
+            - INTERNAL_ERROR
+            - SERVICE_UNAVAILABLE
+            - OPENAI_API_ERROR
+            - QDRANT_ERROR
+            - NEON_ERROR
+          example: "INVALID_QUESTION_LENGTH"
+        retry_after_seconds:
+          type: integer
+          description: Seconds to wait before retrying (for rate limit errors)
+          example: 2700
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: |
+        Optional API key for authenticated requests.
+        Free-tier users: Rate limited to 100 requests/hour/IP.
+        Premium users (future): Higher rate limits with API key.
+
+security:
+  - ApiKeyAuth: []
+
+x-rate-limits:
+  free-tier:
+    requests_per_hour: 100
+    requests_per_day: 1000
+    concurrent_requests: 5
+  premium-tier:
+    requests_per_hour: 1000
+    requests_per_day: 10000
+    concurrent_requests: 20

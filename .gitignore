@@ -1,0 +1,61 @@
+# Dependencies
+node_modules/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.dylib
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+backend/.env
+
+# Build outputs
+build/
+dist/
+.docusaurus/
+.cache/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Temporary files
+.tmp/
+*.tmp
+*.bak
+
+# OS
+Thumbs.db
+.Spotlight-V100
+.Trashes
+
+# Deployment
+.vercel/
+.netlify/
+
+# Local settings
+.claude/settings.local.json

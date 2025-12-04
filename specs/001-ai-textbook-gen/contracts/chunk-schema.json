@@ -1,0 +1,165 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/schemas/chunk.json",
+  "title": "Chunk",
+  "description": "Semantic content fragment extracted from textbook chapters for RAG vector search",
+  "type": "object",
+  "required": ["id", "chapter_id", "content", "embedding", "metadata", "token_count"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for the chunk (UUID v4)",
+      "examples": ["550e8400-e29b-41d4-a716-446655440000"]
+    },
+    "chapter_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Foreign key reference to parent chapter",
+      "examples": ["7c9e6679-7425-40de-944b-e07fc1f90ae7"]
+    },
+    "content": {
+      "type": "string",
+      "minLength": 100,
+      "maxLength": 4096,
+      "description": "Extracted text content (plaintext, Markdown stripped except code blocks)",
+      "examples": [
+        "The Unified Robot Description Format (URDF) is an XML-based format used in ROS 2 to describe the physical structure of a robot. It defines links (rigid bodies), joints (connections between links), visual properties, collision geometries, and inertial properties. URDF files are essential for robot simulation in Gazebo and visualization in RViz."
+      ]
+    },
+    "embedding": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 1536,
+      "maxItems": 1536,
+      "description": "OpenAI text-embedding-3-small vector (1536 dimensions)",
+      "examples": [
+        [0.023, -0.014, 0.089, "... (1536 total values)"]
+      ]
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["module", "week", "chapter_title", "heading"],
+      "properties": {
+        "module": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4,
+          "description": "Module number (1=ROS 2, 2=Digital Twin, 3=Isaac, 4=VLA)",
+          "examples": [1]
+        },
+        "week": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 13,
+          "description": "Week number in course sequence",
+          "examples": [2]
+        },
+        "chapter_title": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Chapter title for citation display",
+          "examples": ["ROS 2 Nodes and Topics"]
+        },
+        "heading": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Section heading path for citation (e.g., 'Technical Implementation > Creating Your First Node')",
+          "examples": ["URDF for Humanoids"]
+        },
+        "concept_tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 50
+          },
+          "minItems": 1,
+          "maxItems": 10,
+          "description": "Keywords for metadata filtering (e.g., ['ros2', 'urdf', 'simulation'])",
+          "examples": [
+            ["ros2", "urdf", "robot-description", "simulation"]
+          ]
+        },
+        "vla_tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "vision",
+              "language",
+              "action",
+              "manipulation",
+              "navigation",
+              "perception",
+              "planning",
+              "control",
+              "learning"
+            ]
+          },
+          "description": "VLA-specific capability tags (optional, used for Module 4 filtering)",
+          "examples": [
+            ["vision", "manipulation"]
+          ]
+        },
+        "content_type": {
+          "type": "string",
+          "enum": [
+            "theory",
+            "code",
+            "lab",
+            "troubleshooting",
+            "assessment",
+            "application"
+          ],
+          "description": "Content category for routing queries to appropriate chunk types",
+          "examples": ["theory"]
+        }
+      },
+      "description": "Metadata for filtering and citation generation"
+    },
+    "token_count": {
+      "type": "integer",
+      "minimum": 512,
+      "maximum": 1024,
+      "description": "Number of tokens in content (measured using tiktoken cl100k_base encoding)",
+      "examples": [768]
+    }
+  },
+  "examples": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "chapter_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+      "content": "The Unified Robot Description Format (URDF) is an XML-based format used in ROS 2 to describe the physical structure of a robot. It defines links (rigid bodies), joints (connections between links), visual properties, collision geometries, and inertial properties. URDF files are essential for robot simulation in Gazebo and visualization in RViz. For humanoid robots, URDF models typically include 20-50 links representing the torso, head, arms, legs, and hands. Joints define the connections between these links with properties like joint type (revolute, prismatic, fixed), axis of rotation, and limits (position, velocity, effort). Example URDF snippet for a humanoid shoulder joint:\n\n```xml\n<joint name=\"shoulder_pitch_joint\" type=\"revolute\">\n  <parent link=\"torso_link\"/>\n  <child link=\"upper_arm_link\"/>\n  <origin xyz=\"0 0.15 0.4\" rpy=\"0 0 0\"/>\n  <axis xyz=\"0 1 0\"/>\n  <limit lower=\"-1.57\" upper=\"1.57\" effort=\"50\" velocity=\"2.0\"/>\n</joint>\n```\n\nThis joint connects the torso to the upper arm, allowing pitch rotation (forward/backward) with limits of ±90 degrees (±1.57 radians).",
+      "embedding": [0.023, -0.014, 0.089, 0.042, -0.067],
+      "metadata": {
+        "module": 1,
+        "week": 2,
+        "chapter_title": "ROS 2 Nodes and Topics",
+        "heading": "URDF for Humanoids",
+        "concept_tags": ["ros2", "urdf", "robot-description", "simulation", "humanoid"],
+        "vla_tags": [],
+        "content_type": "theory"
+      },
+      "token_count": 768
+    },
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "chapter_id": "8d7f5432-1098-4321-bcde-f0987654321a",
+      "content": "To create a ROS 2 publisher node in Python, follow these steps:\n\n1. Import necessary ROS 2 libraries:\n```python\nimport rclpy\nfrom rclpy.node import Node\nfrom std_msgs.msg import String\n```\n\n2. Define a publisher class:\n```python\nclass SimplePublisher(Node):\n    def __init__(self):\n        super().__init__('simple_publisher')\n        self.publisher_ = self.create_publisher(String, 'chatter', 10)\n        self.timer = self.create_timer(0.5, self.timer_callback)\n        self.i = 0\n\n    def timer_callback(self):\n        msg = String()\n        msg.data = f'Hello ROS 2: {self.i}'\n        self.publisher_.publish(msg)\n        self.get_logger().info(f'Publishing: \"{msg.data}\"')\n        self.i += 1\n```\n\n3. Create main function:\n```python\ndef main(args=None):\n    rclpy.init(args=args)\n    node = SimplePublisher()\n    rclpy.spin(node)\n    node.destroy_node()\n    rclpy.shutdown()\n\nif __name__ == '__main__':\n    main()\n```\n\nRun with: `python3 simple_publisher.py`\nExpected output: Messages published to `/chatter` topic at 2 Hz.",
+      "embedding": [-0.011, 0.034, -0.056, 0.078, 0.023],
+      "metadata": {
+        "module": 1,
+        "week": 2,
+        "chapter_title": "ROS 2 Nodes and Topics",
+        "heading": "Creating Your First Publisher",
+        "concept_tags": ["ros2", "publisher", "python", "node", "tutorial"],
+        "vla_tags": [],
+        "content_type": "code"
+      },
+      "token_count": 612
+    }
+  ]
+}
