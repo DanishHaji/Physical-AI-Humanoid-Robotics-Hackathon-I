@@ -20,6 +20,19 @@ from .models import (
     ErrorResponse,
     Citation
 )
+from .embeddings import generate_embedding, test_embedding_connection
+from .retrieval import (
+    init_qdrant_client,
+    init_neon_pool,
+    close_connections,
+    search_qdrant,
+    get_chunks_batch_from_neon,
+    log_query_to_neon,
+    extract_citations,
+    test_qdrant_connection,
+    test_neon_connection
+)
+from .answer_generator import generate_answer, generate_no_context_response
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -53,9 +66,25 @@ async def startup_event():
     print(f"📍 Environment: {settings.ENVIRONMENT}")
     print(f"🔧 Debug mode: {settings.DEBUG}")
 
-    # TODO: Initialize Qdrant client
-    # TODO: Initialize Neon PostgreSQL pool
-    # TODO: Validate OpenAI API key
+    # Initialize Qdrant client
+    try:
+        await init_qdrant_client()
+    except Exception as e:
+        print(f"⚠️  Warning: Qdrant initialization failed: {str(e)}")
+
+    # Initialize Neon PostgreSQL pool
+    try:
+        await init_neon_pool()
+    except Exception as e:
+        print(f"⚠️  Warning: Neon initialization failed: {str(e)}")
+
+    # Validate OpenAI API key
+    try:
+        openai_ok = await test_embedding_connection()
+        if not openai_ok:
+            print("⚠️  Warning: OpenAI connection test failed")
+    except Exception as e:
+        print(f"⚠️  Warning: OpenAI validation failed: {str(e)}")
 
     print("✅ All services initialized successfully")
 
@@ -66,8 +95,8 @@ async def shutdown_event():
     """Clean up database connections"""
     print("🛑 Shutting down...")
 
-    # TODO: Close Qdrant client
-    # TODO: Close Neon PostgreSQL pool
+    # Close Qdrant client and Neon pool
+    await close_connections()
 
     print("✅ Cleanup complete")
 
@@ -81,13 +110,28 @@ async def health_check():
     Returns:
         HealthResponse: Service status and timestamp
     """
-    # TODO: Implement actual health checks for Qdrant, Neon, OpenAI
+    services = {}
 
-    services = {
-        "qdrant": "operational",  # TODO: ping Qdrant
-        "neon": "operational",    # TODO: ping Neon
-        "openai": "operational"   # TODO: validate API key
-    }
+    # Check Qdrant
+    try:
+        qdrant_ok = await test_qdrant_connection()
+        services["qdrant"] = "operational" if qdrant_ok else "down"
+    except:
+        services["qdrant"] = "down"
+
+    # Check Neon
+    try:
+        neon_ok = await test_neon_connection()
+        services["neon"] = "operational" if neon_ok else "down"
+    except:
+        services["neon"] = "down"
+
+    # Check OpenAI
+    try:
+        openai_ok = await test_embedding_connection()
+        services["openai"] = "operational" if openai_ok else "down"
+    except:
+        services["openai"] = "down"
 
     status = "healthy" if all(v == "operational" for v in services.values()) else "degraded"
 
@@ -129,41 +173,57 @@ async def query_chatbot(
             detected_mode = detect_query_mode(query.question)
 
         # Step 2: Generate embedding for the question
-        # TODO: Implement embedding generation
-        # embedding = await generate_embedding(query.question)
+        embedding = await generate_embedding(query.question)
 
         # Step 3: Retrieve top-k chunks from Qdrant
-        # TODO: Implement vector search
-        # chunks = await search_qdrant(embedding, top_k=settings.RAG_TOP_K)
+        qdrant_results = await search_qdrant(
+            query_embedding=embedding,
+            top_k=settings.RAG_TOP_K,
+            similarity_threshold=settings.RAG_SIMILARITY_THRESHOLD
+        )
 
-        # Step 4: Filter chunks by similarity threshold
-        # TODO: Implement filtering
-        # filtered_chunks = filter_by_similarity(chunks, threshold=settings.RAG_SIMILARITY_THRESHOLD)
+        # Check if we found any relevant chunks
+        if not qdrant_results:
+            # No relevant context found
+            answer = await generate_no_context_response(query.question, detected_mode)
+            citations = []
+            response_time_ms = int((time.time() - start_time) * 1000)
+
+            return QueryResponse(
+                answer=answer,
+                citations=citations,
+                mode_detected=detected_mode,
+                response_time_ms=response_time_ms
+            )
+
+        # Step 4: Fetch full chunk data from Neon
+        chunk_ids = [chunk_id for chunk_id, score, metadata in qdrant_results]
+        chunks = await get_chunks_batch_from_neon(chunk_ids)
 
         # Step 5: Generate answer using OpenAI GPT-4o-mini
-        # TODO: Implement answer generation
-        # answer = await generate_answer(query.question, filtered_chunks, detected_mode)
+        answer = await generate_answer(
+            question=query.question,
+            context_chunks=chunks,
+            mode=detected_mode,
+            selected_text=query.selected_text
+        )
 
         # Step 6: Extract citations from retrieved chunks
-        # TODO: Implement citation extraction
-        # citations = extract_citations(filtered_chunks)
-
-        # TEMPORARY: Return mock response until RAG pipeline is implemented
-        answer = "This is a placeholder response. The RAG system is not yet fully implemented. Please check back after the embedding, retrieval, and generation modules are complete."
-        citations = [
-            Citation(
-                chapter="ROS 2 Fundamentals",
-                section="Introduction",
-                url="/docs/module-01-ros2/week-02-ros2-fundamentals#introduction"
-            )
-        ]
+        citations = extract_citations(chunks)
 
         # Calculate response time
         response_time_ms = int((time.time() - start_time) * 1000)
 
         # Step 7: Log query to Neon PostgreSQL
-        # TODO: Implement query logging
-        # await log_query(query, answer, citations, detected_mode, response_time_ms)
+        await log_query_to_neon(
+            question=query.question,
+            mode=detected_mode,
+            chunk_ids=chunk_ids,
+            answer=answer,
+            citations=citations,
+            response_time_ms=response_time_ms,
+            user_ip_hash=None  # TODO: Hash user IP if needed
+        )
 
         return QueryResponse(
             answer=answer,
