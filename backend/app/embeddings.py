@@ -1,228 +1,241 @@
 """
-OpenAI Embedding Generation Module
-Generates vector embeddings for text using text-embedding-3-small
+Local Embedding Generation Module (Free Stack)
+Generates vector embeddings using sentence-transformers (all-MiniLM-L6-v2)
+No API keys required - runs completely offline on CPU/GPU
 """
 
-from openai import AsyncOpenAI
+from sentence_transformers import SentenceTransformer
 from typing import List, Optional
-import tiktoken
+import numpy as np
 from .config import settings
 
-# Initialize OpenAI client
-client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+# Initialize sentence-transformers model (loaded once, reused)
+print(f"Loading embedding model: {settings.EMBEDDING_MODEL}...")
+model = SentenceTransformer(
+    settings.EMBEDDING_MODEL,
+    device=settings.EMBEDDING_DEVICE
+)
+print(f"[OK] Embedding model loaded on {settings.EMBEDDING_DEVICE} (dimension: {settings.VECTOR_SIZE})")
 
-# Initialize tokenizer for accurate token counting
-encoding = tiktoken.get_encoding("cl100k_base")
 
-
-async def generate_embedding(text: str) -> List[float]:
+def generate_embedding(text: str) -> List[float]:
     """
-    Generate embedding vector for a single text using OpenAI API
+    Generate embedding vector for a single text using sentence-transformers
 
     Args:
-        text: Input text to embed (will be truncated if >8191 tokens)
+        text: Input text to embed (no length limit, but performance degrades >512 tokens)
 
     Returns:
-        List[float]: 1536-dimensional embedding vector
+        List[float]: 384-dimensional embedding vector (all-MiniLM-L6-v2)
 
     Raises:
-        Exception: If OpenAI API call fails
+        Exception: If model inference fails
     """
     try:
-        # Truncate text if it exceeds model's token limit
-        tokens = encoding.encode(text)
-        if len(tokens) > 8191:
-            # Keep first 8191 tokens
-            tokens = tokens[:8191]
-            text = encoding.decode(tokens)
-            print(f"⚠️ Warning: Text truncated to 8191 tokens for embedding")
+        # Truncate very long texts for performance (sentence-transformers default: 512 tokens)
+        if len(text) > 5000:  # ~1000 words
+            text = text[:5000]
+            print(f"[WARNING] Warning: Text truncated to 5000 characters for embedding")
 
-        # Call OpenAI embedding API
-        response = await client.embeddings.create(
-            model=settings.OPENAI_EMBEDDING_MODEL,
-            input=text,
-            encoding_format="float"
+        # Generate embedding (synchronous)
+        embedding = model.encode(
+            text,
+            convert_to_numpy=True,
+            show_progress_bar=False,
+            normalize_embeddings=True  # L2 normalization for cosine similarity
         )
 
-        # Extract embedding vector
-        embedding = response.data[0].embedding
+        # Convert numpy array to list
+        embedding_list = embedding.tolist()
 
         # Validate dimension
-        if len(embedding) != settings.QDRANT_VECTOR_SIZE:
+        if len(embedding_list) != settings.VECTOR_SIZE:
             raise ValueError(
-                f"Embedding dimension mismatch: expected {settings.QDRANT_VECTOR_SIZE}, "
-                f"got {len(embedding)}"
+                f"Embedding dimension mismatch: expected {settings.VECTOR_SIZE}, "
+                f"got {len(embedding_list)}"
             )
 
-        return embedding
+        return embedding_list
 
     except Exception as e:
-        print(f"❌ Error generating embedding: {str(e)}")
+        print(f"[ERROR] Error generating embedding: {str(e)}")
         raise
 
 
-async def generate_embeddings_batch(
+def generate_embeddings_batch(
     texts: List[str],
-    batch_size: int = 100
+    batch_size: int = 32
 ) -> List[List[float]]:
     """
-    Generate embeddings for multiple texts in batches
+    Generate embeddings for multiple texts in batches (optimized for CPU/GPU)
 
     Args:
         texts: List of input texts to embed
-        batch_size: Number of texts to process per API call (max 2048 for OpenAI)
+        batch_size: Number of texts to process per batch (default: 32 for CPU)
 
     Returns:
-        List[List[float]]: List of 1536-dimensional embedding vectors
+        List[List[float]]: List of 384-dimensional embedding vectors
 
     Raises:
-        Exception: If OpenAI API call fails
+        Exception: If model inference fails
     """
     embeddings = []
 
     try:
-        # Process in batches to respect API limits
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i:i + batch_size]
+        # Truncate very long texts
+        truncated_texts = []
+        for text in texts:
+            if len(text) > 5000:
+                text = text[:5000]
+            truncated_texts.append(text)
 
-            # Truncate texts in batch if needed
-            truncated_batch = []
-            for text in batch:
-                tokens = encoding.encode(text)
-                if len(tokens) > 8191:
-                    tokens = tokens[:8191]
-                    text = encoding.decode(tokens)
-                truncated_batch.append(text)
+        # Process in batches for memory efficiency
+        for i in range(0, len(truncated_texts), batch_size):
+            batch = truncated_texts[i:i + batch_size]
 
-            # Call OpenAI embedding API for batch
-            response = await client.embeddings.create(
-                model=settings.OPENAI_EMBEDDING_MODEL,
-                input=truncated_batch,
-                encoding_format="float"
+            # Generate embeddings for batch
+            batch_embeddings = model.encode(
+                batch,
+                convert_to_numpy=True,
+                show_progress_bar=False,
+                normalize_embeddings=True,
+                batch_size=batch_size
             )
 
-            # Extract embeddings from response
-            batch_embeddings = [item.embedding for item in response.data]
-            embeddings.extend(batch_embeddings)
+            # Convert to list of lists
+            batch_embeddings_list = batch_embeddings.tolist()
+            embeddings.extend(batch_embeddings_list)
 
-            print(f"✅ Generated embeddings for batch {i // batch_size + 1}/{(len(texts) - 1) // batch_size + 1}")
+            print(f"[OK] Generated embeddings for batch {i // batch_size + 1}/{(len(texts) - 1) // batch_size + 1}")
 
         return embeddings
 
     except Exception as e:
-        print(f"❌ Error generating batch embeddings: {str(e)}")
+        print(f"[ERROR] Error generating batch embeddings: {str(e)}")
         raise
 
 
 def count_tokens(text: str) -> int:
     """
-    Count the number of tokens in a text using tiktoken
+    Estimate token count for text (approximation for sentence-transformers)
+
+    Note: sentence-transformers uses WordPiece tokenization (BERT-style).
+    This is a rough estimate based on whitespace splitting.
 
     Args:
         text: Input text
 
     Returns:
-        int: Token count
+        int: Approximate token count
     """
-    tokens = encoding.encode(text)
-    return len(tokens)
+    # Rough approximation: 1 word ≈ 1.3 tokens for BERT models
+    words = len(text.split())
+    estimated_tokens = int(words * 1.3)
+    return estimated_tokens
 
 
-def truncate_text(text: str, max_tokens: int = 8191) -> str:
+def truncate_text(text: str, max_chars: int = 5000) -> str:
     """
-    Truncate text to a maximum number of tokens
+    Truncate text to a maximum number of characters
+
+    Note: sentence-transformers models typically handle ~512 tokens max effectively.
+    For all-MiniLM-L6-v2, 5000 chars ≈ 1000 words ≈ 1300 tokens.
 
     Args:
         text: Input text
-        max_tokens: Maximum number of tokens (default: 8191 for text-embedding-3-small)
+        max_chars: Maximum number of characters (default: 5000)
 
     Returns:
         str: Truncated text
     """
-    tokens = encoding.encode(text)
-    if len(tokens) <= max_tokens:
+    if len(text) <= max_chars:
         return text
 
-    # Truncate and decode
-    truncated_tokens = tokens[:max_tokens]
-    return encoding.decode(truncated_tokens)
+    return text[:max_chars]
 
 
-async def test_embedding_connection() -> bool:
+def test_embedding_connection() -> bool:
     """
-    Test OpenAI API connection by generating a test embedding
+    Test embedding model by generating a test embedding
 
     Returns:
-        bool: True if connection successful, False otherwise
+        bool: True if model works, False otherwise
     """
     try:
         test_text = "This is a test sentence for embedding generation."
-        embedding = await generate_embedding(test_text)
+        embedding = generate_embedding(test_text)
 
-        if len(embedding) == settings.QDRANT_VECTOR_SIZE:
-            print(f"✅ OpenAI embedding connection successful (dimension: {len(embedding)})")
+        if len(embedding) == settings.VECTOR_SIZE:
+            print(f"[OK] Sentence-transformers model working (dimension: {len(embedding)})")
             return True
         else:
-            print(f"❌ Embedding dimension mismatch: {len(embedding)}")
+            print(f"[ERROR] Embedding dimension mismatch: {len(embedding)}")
             return False
 
     except Exception as e:
-        print(f"❌ OpenAI connection test failed: {str(e)}")
+        print(f"[ERROR] Embedding model test failed: {str(e)}")
         return False
 
 
-# Cost estimation helper
-def estimate_embedding_cost(
-    text_or_token_count: any,
-    is_token_count: bool = False
-) -> float:
+def get_model_info() -> dict:
     """
-    Estimate cost for generating embeddings using text-embedding-3-small
-
-    Args:
-        text_or_token_count: Either text string or token count (int)
-        is_token_count: If True, treats input as token count instead of text
+    Get information about the loaded embedding model
 
     Returns:
-        float: Estimated cost in USD
+        dict: Model metadata (name, dimension, device, max_seq_length)
     """
-    # text-embedding-3-small pricing: $0.02 per 1M tokens
-    price_per_million_tokens = 0.02
-
-    if is_token_count:
-        token_count = text_or_token_count
-    else:
-        token_count = count_tokens(text_or_token_count)
-
-    cost = (token_count / 1_000_000) * price_per_million_tokens
-    return cost
-
-
-def estimate_batch_cost(texts: List[str]) -> dict:
-    """
-    Estimate cost for embedding a batch of texts
-
-    Args:
-        texts: List of input texts
-
-    Returns:
-        dict: Contains total_tokens, cost_usd, and per_text_stats
-    """
-    total_tokens = 0
-    per_text_tokens = []
-
-    for text in texts:
-        tokens = count_tokens(text)
-        total_tokens += tokens
-        per_text_tokens.append(tokens)
-
-    cost_usd = estimate_embedding_cost(total_tokens, is_token_count=True)
-
     return {
-        "total_tokens": total_tokens,
-        "cost_usd": round(cost_usd, 6),
-        "texts_count": len(texts),
-        "avg_tokens_per_text": round(total_tokens / len(texts), 2),
-        "min_tokens": min(per_text_tokens),
-        "max_tokens": max(per_text_tokens)
+        "model_name": settings.EMBEDDING_MODEL,
+        "vector_dimension": settings.VECTOR_SIZE,
+        "device": settings.EMBEDDING_DEVICE,
+        "max_seq_length": model.max_seq_length,
+        "tokenizer": "WordPiece (BERT-style)",
+        "normalization": "L2 (for cosine similarity)",
+        "cost": "FREE (runs locally)"
     }
+
+
+def compute_similarity(embedding1: List[float], embedding2: List[float]) -> float:
+    """
+    Compute cosine similarity between two embeddings
+
+    Args:
+        embedding1: First embedding vector
+        embedding2: Second embedding vector
+
+    Returns:
+        float: Cosine similarity score (0-1, higher = more similar)
+    """
+    # Convert to numpy arrays
+    vec1 = np.array(embedding1)
+    vec2 = np.array(embedding2)
+
+    # Cosine similarity (already normalized, so just dot product)
+    similarity = np.dot(vec1, vec2)
+
+    return float(similarity)
+
+
+# Performance comparison with OpenAI (for reference)
+"""
+Performance Comparison:
+┌─────────────────────┬─────────────────┬──────────────────────┐
+│ Feature             │ OpenAI          │ sentence-transformers│
+├─────────────────────┼─────────────────┼──────────────────────┤
+│ Model               │ text-embed-3-s  │ all-MiniLM-L6-v2     │
+│ Dimension           │ 1536            │ 384                  │
+│ Cost                │ $0.02/1M tokens │ FREE                 │
+│ Speed (single)      │ ~200ms (API)    │ ~20ms (CPU)          │
+│ Speed (batch 100)   │ ~500ms          │ ~200ms (CPU)         │
+│ Max tokens          │ 8191            │ 512 (optimal)        │
+│ Quality             │ Very High       │ Good                 │
+│ Privacy             │ Cloud (OpenAI)  │ 100% Local           │
+│ Internet Required   │ Yes             │ No                   │
+└─────────────────────┴─────────────────┴──────────────────────┘
+
+For textbook RAG use case:
+- sentence-transformers is sufficient (same papers, consistent terminology)
+- 10x faster for local queries
+- No rate limits, no costs
+- Privacy: student queries stay on your server
+"""

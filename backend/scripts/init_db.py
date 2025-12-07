@@ -1,207 +1,121 @@
 """
-Database Initialization Script for Neon PostgreSQL
-Creates all necessary tables for the textbook RAG system
+Database Initialization Script for SQLite (Free Stack)
+Creates query logging table for the textbook RAG system
+
+Note: ChromaDB handles chunk storage and metadata.
+SQLite is only used for query logging and analytics.
 """
 
-import asyncio
-import asyncpg
-from dotenv import load_dotenv
+import sqlite3
+from pathlib import Path
+import sys
 import os
 
-# Load environment variables
-load_dotenv()
+# Add parent directory to path to import config
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-DATABASE_URL = os.getenv('DATABASE_URL')
+from app.config import settings
 
 
-async def create_tables():
+def create_tables(db_path: str = None):
     """Create all database tables"""
 
-    conn = await asyncpg.connect(DATABASE_URL)
+    if db_path is None:
+        db_path = settings.DATABASE_PATH
+
+    # Ensure directory exists
+    db_file = Path(db_path)
+    db_file.parent.mkdir(parents=True, exist_ok=True)
+
+    print(f"🔧 Creating SQLite database at: {db_path}")
+
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
 
     try:
         print("🔧 Creating database tables...")
 
-        # Enable UUID extension
-        await conn.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";')
-        print("✅ Enabled uuid-ossp extension")
-
-        # Create chapters table
-        await conn.execute('''
-            CREATE TABLE IF NOT EXISTS chapters (
-                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                title VARCHAR(200) NOT NULL,
-                module INTEGER NOT NULL CHECK (module BETWEEN 1 AND 4),
-                week INTEGER NOT NULL UNIQUE CHECK (week BETWEEN 1 AND 13),
-                slug VARCHAR(100) NOT NULL UNIQUE,
-                content TEXT NOT NULL CHECK (length(content) >= 2000),
-                learning_objectives JSONB NOT NULL,
-                code_examples JSONB,
-                glossary_terms JSONB,
-                status VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'published')),
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                author VARCHAR(100) DEFAULT 'Claude Code + Human Review',
-                estimated_reading_time INTEGER GENERATED ALWAYS AS (
-                    (length(content) / 5) / 200
-                ) STORED
-            );
-        ''')
-        print("✅ Created chapters table")
-
-        # Create chunks table
-        await conn.execute('''
-            CREATE TABLE IF NOT EXISTS chunks (
-                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                chapter_id UUID NOT NULL REFERENCES chapters(id) ON DELETE CASCADE,
-                content TEXT NOT NULL CHECK (length(content) BETWEEN 100 AND 4096),
-                metadata JSONB NOT NULL,
-                heading VARCHAR(200) NOT NULL,
-                position INTEGER NOT NULL CHECK (position >= 0),
-                token_count INTEGER NOT NULL CHECK (token_count BETWEEN 512 AND 1024),
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                UNIQUE(chapter_id, position)
-            );
-        ''')
-        print("✅ Created chunks table")
-
-        # Create queries table
-        await conn.execute('''
+        # Create queries table (for query logging and analytics)
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS queries (
-                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                question_text VARCHAR(500) NOT NULL CHECK (length(question_text) BETWEEN 1 AND 500),
+                id TEXT PRIMARY KEY,
+                question_text TEXT NOT NULL CHECK (length(question_text) BETWEEN 1 AND 500),
                 selected_text TEXT,
-                mode VARCHAR(20) NOT NULL CHECK (mode IN ('explain', 'code', 'urdu', 'exam')),
-                retrieved_chunk_ids UUID[],
+                mode TEXT NOT NULL CHECK (mode IN ('explain', 'code', 'urdu', 'exam')),
+                retrieved_chunk_ids TEXT NOT NULL,
                 answer_text TEXT NOT NULL,
-                citations JSONB NOT NULL,
+                citations TEXT NOT NULL,
                 response_time_ms INTEGER NOT NULL CHECK (response_time_ms > 0 AND response_time_ms < 10000),
-                user_ip_hash CHAR(64),
-                feedback VARCHAR(20) CHECK (feedback IN ('helpful', 'not_helpful', 'report_issue')),
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            );
+                user_ip_hash TEXT,
+                feedback TEXT CHECK (feedback IN ('helpful', 'not_helpful', 'report_issue')),
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
         ''')
         print("✅ Created queries table")
-
-        # Create assessments table
-        await conn.execute('''
-            CREATE TABLE IF NOT EXISTS assessments (
-                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                chapter_id UUID NOT NULL REFERENCES chapters(id) ON DELETE CASCADE,
-                type VARCHAR(20) NOT NULL CHECK (type IN ('mcq', 'project', 'lab_exercise')),
-                title VARCHAR(200) NOT NULL,
-                problem_statement TEXT,
-                requirements JSONB,
-                starter_code TEXT,
-                rubric JSONB,
-                mcq_questions JSONB,
-                point_value INTEGER NOT NULL CHECK (point_value > 0),
-                estimated_time_minutes INTEGER,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            );
-        ''')
-        print("✅ Created assessments table")
-
-        # Create diagrams table
-        await conn.execute('''
-            CREATE TABLE IF NOT EXISTS diagrams (
-                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                chapter_id UUID NOT NULL REFERENCES chapters(id) ON DELETE CASCADE,
-                type VARCHAR(20) NOT NULL CHECK (type IN ('architecture', 'workflow', 'concept', 'state_machine', 'sequence')),
-                title VARCHAR(200) NOT NULL,
-                mermaid_code TEXT NOT NULL,
-                alt_text VARCHAR(500) NOT NULL,
-                position INTEGER NOT NULL CHECK (position >= 0),
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                UNIQUE(chapter_id, position)
-            );
-        ''')
-        print("✅ Created diagrams table")
 
         # Create indexes
         print("🔧 Creating indexes...")
 
-        await conn.execute('CREATE INDEX IF NOT EXISTS idx_chapters_module ON chapters(module);')
-        await conn.execute('CREATE INDEX IF NOT EXISTS idx_chapters_status ON chapters(status);')
-
-        await conn.execute('CREATE INDEX IF NOT EXISTS idx_chunks_chapter_id ON chunks(chapter_id);')
-        await conn.execute('CREATE INDEX IF NOT EXISTS idx_chunks_metadata_tags ON chunks USING GIN (metadata);')
-
-        await conn.execute('CREATE INDEX IF NOT EXISTS idx_queries_created_at ON queries(created_at DESC);')
-        await conn.execute('CREATE INDEX IF NOT EXISTS idx_queries_mode ON queries(mode);')
-        await conn.execute('CREATE INDEX IF NOT EXISTS idx_queries_feedback ON queries(feedback) WHERE feedback IS NOT NULL;')
-
-        await conn.execute('CREATE INDEX IF NOT EXISTS idx_assessments_chapter_id ON assessments(chapter_id);')
-        await conn.execute('CREATE INDEX IF NOT EXISTS idx_assessments_type ON assessments(type);')
-
-        await conn.execute('CREATE INDEX IF NOT EXISTS idx_diagrams_chapter_id ON diagrams(chapter_id);')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_queries_created_at ON queries(created_at DESC)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_queries_mode ON queries(mode)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_queries_feedback ON queries(feedback)')
 
         print("✅ Created all indexes")
 
-        # Create updated_at trigger for chapters and chunks
-        await conn.execute('''
-            CREATE OR REPLACE FUNCTION update_updated_at_column()
-            RETURNS TRIGGER AS $$
-            BEGIN
-                NEW.updated_at = NOW();
-                RETURN NEW;
-            END;
-            $$ language 'plpgsql';
-        ''')
-
-        await conn.execute('''
-            CREATE TRIGGER update_chapters_updated_at BEFORE UPDATE ON chapters
-            FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-        ''')
-
-        await conn.execute('''
-            CREATE TRIGGER update_chunks_updated_at BEFORE UPDATE ON chunks
-            FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-        ''')
-
-        print("✅ Created triggers for updated_at timestamps")
+        conn.commit()
 
         print("\n✅ Database initialization complete!")
-        print(f"📊 Tables created: chapters, chunks, queries, assessments, diagrams")
-        print(f"📊 Indexes created: 11 indexes for optimized queries")
+        print(f"📊 Table created: queries (for query logging)")
+        print(f"📊 Indexes created: 3 indexes for optimized queries")
+        print(f"\nNote: Chunk storage is handled by ChromaDB (not SQLite)")
 
     except Exception as e:
         print(f"\n❌ Error during database initialization: {str(e)}")
+        conn.rollback()
         raise
 
     finally:
-        await conn.close()
+        conn.close()
 
 
-async def verify_tables():
+def verify_tables(db_path: str = None):
     """Verify that all tables were created successfully"""
 
-    conn = await asyncpg.connect(DATABASE_URL)
+    if db_path is None:
+        db_path = settings.DATABASE_PATH
+
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
 
     try:
         print("\n🔍 Verifying tables...")
 
         # Get list of tables
-        tables = await conn.fetch('''
-            SELECT table_name
-            FROM information_schema.tables
-            WHERE table_schema = 'public'
-            AND table_type = 'BASE TABLE'
-            ORDER BY table_name;
+        cursor.execute('''
+            SELECT name
+            FROM sqlite_master
+            WHERE type = 'table'
+            AND name NOT LIKE 'sqlite_%'
+            ORDER BY name
         ''')
 
-        table_names = [row['table_name'] for row in tables]
+        tables = [row[0] for row in cursor.fetchall()]
 
-        expected_tables = ['chapters', 'chunks', 'queries', 'assessments', 'diagrams']
+        expected_tables = ['queries']
 
         for table in expected_tables:
-            if table in table_names:
+            if table in tables:
                 # Get row count
-                count = await conn.fetchval(f'SELECT COUNT(*) FROM {table}')
+                cursor.execute(f'SELECT COUNT(*) FROM {table}')
+                count = cursor.fetchone()[0]
                 print(f"  ✅ {table}: {count} rows")
             else:
                 print(f"  ❌ {table}: NOT FOUND")
+
+        # Get database size
+        db_size = Path(db_path).stat().st_size
+        db_size_mb = db_size / (1024 * 1024)
+        print(f"\n📊 Database size: {db_size_mb:.2f} MB")
 
         print("\n✅ Verification complete!")
 
@@ -209,33 +123,133 @@ async def verify_tables():
         print(f"\n❌ Error during verification: {str(e)}")
 
     finally:
-        await conn.close()
+        conn.close()
 
 
-async def main():
+def drop_all_tables(db_path: str = None):
+    """
+    Drop all tables (useful for resetting database)
+    USE WITH CAUTION: This will delete all data!
+    """
+
+    if db_path is None:
+        db_path = settings.DATABASE_PATH
+
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    try:
+        print("⚠️ Dropping all tables...")
+
+        cursor.execute('DROP TABLE IF EXISTS queries')
+
+        conn.commit()
+        print("✅ All tables dropped")
+
+    except Exception as e:
+        print(f"❌ Error dropping tables: {str(e)}")
+        conn.rollback()
+
+    finally:
+        conn.close()
+
+
+def add_sample_query(db_path: str = None):
+    """Add a sample query for testing"""
+
+    if db_path is None:
+        db_path = settings.DATABASE_PATH
+
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    try:
+        import json
+        from uuid import uuid4
+        from datetime import datetime
+
+        query_id = str(uuid4())
+        cursor.execute('''
+            INSERT INTO queries
+            (id, question_text, mode, retrieved_chunk_ids, answer_text,
+             citations, response_time_ms, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            query_id,
+            "What is ROS 2?",
+            "explain",
+            json.dumps(["chunk-1", "chunk-2"]),
+            "ROS 2 is an open-source robotics middleware framework...",
+            json.dumps([{
+                "chapter": "ROS 2 Fundamentals",
+                "section": "Introduction",
+                "url": "/docs/module-01-ros2/week-02-ros2-fundamentals"
+            }]),
+            1234,
+            datetime.utcnow().isoformat()
+        ))
+
+        conn.commit()
+        print(f"✅ Added sample query (ID: {query_id})")
+
+    except Exception as e:
+        print(f"❌ Error adding sample query: {str(e)}")
+        conn.rollback()
+
+    finally:
+        conn.close()
+
+
+def main():
     """Main function"""
-    if not DATABASE_URL:
-        print("❌ Error: DATABASE_URL environment variable not set")
-        print("Please create a .env file with your Neon connection string")
-        return
 
     print("=" * 60)
-    print("Physical AI Textbook - Database Initialization")
+    print("Physical AI Textbook - Database Initialization (Free Stack)")
     print("=" * 60)
-    print(f"\nConnecting to: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'database'}")
+    print(f"\nDatabase: SQLite (local)")
+    print(f"Path: {settings.DATABASE_PATH}")
+    print(f"Vector storage: ChromaDB (separate)")
     print()
 
-    await create_tables()
-    await verify_tables()
+    # Create tables
+    create_tables()
+
+    # Verify tables
+    verify_tables()
+
+    # Optionally add sample query
+    if len(sys.argv) > 1 and sys.argv[1] == '--with-sample':
+        add_sample_query()
+        verify_tables()
 
     print("\n" + "=" * 60)
     print("✅ All done! Your database is ready for use.")
     print("=" * 60)
     print("\nNext steps:")
-    print("1. Run document ingestion: python scripts/chunk_chapters.py")
-    print("2. Start the API server: uvicorn app.main:app --reload")
+    print("1. Initialize ChromaDB: python scripts/setup_chroma.py")
+    print("2. Ingest chapters: python scripts/ingest_chapters.py")
+    print("3. Start the API server: uvicorn app.main:app --reload")
+    print()
+    print("Optional:")
+    print("- Add sample data: python scripts/init_db.py --with-sample")
+    print("- Reset database: python scripts/init_db.py --reset")
     print()
 
 
+def reset_database():
+    """Reset database by dropping and recreating all tables"""
+    print("⚠️ RESETTING DATABASE - ALL DATA WILL BE LOST!")
+    input("Press Enter to confirm, or Ctrl+C to cancel...")
+
+    drop_all_tables()
+    create_tables()
+    verify_tables()
+
+    print("\n✅ Database reset complete!")
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    if len(sys.argv) > 1 and sys.argv[1] == '--reset':
+        reset_database()
+    else:
+        main()

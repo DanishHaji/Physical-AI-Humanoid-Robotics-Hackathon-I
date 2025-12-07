@@ -26,7 +26,7 @@ const sidebars = {
     },
     {
       type: 'category',
-      label: 'Module 2: Digital Twin (Gazebo + Unity)',
+      label: 'Module 2: Digital Twin Simulation',
       items: [
         'module-02-digital-twin/week-05-digital-twin',
       ],
@@ -40,7 +40,7 @@ const sidebars = {
     },
     {
       type: 'category',
-      label: 'Module 4: Vision-Language-Action (VLA)',
+      label: 'Module 4: Vision-Language-Action Systems',
       items: [
         'module-04-vla/week-11-vla-systems',
       ],

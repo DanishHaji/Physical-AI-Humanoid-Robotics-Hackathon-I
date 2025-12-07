@@ -1,290 +1,181 @@
 """
-Retrieval Module
-Vector search in Qdrant + metadata fetching from Neon PostgreSQL
+Retrieval Module (Cloud Free-Tier Stack)
+Vector search with Qdrant Cloud + query logging with Neon PostgreSQL
+Uses cloud services - requires API credentials
 """
 
-from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue
-from qdrant_client.models import ScoredPoint
-import asyncpg
 from typing import List, Dict, Optional, Tuple
-from uuid import UUID, uuid4
-from .config import settings, get_qdrant_config, get_database_config
+from uuid import uuid4
+import json
+from datetime import datetime
+from .config import settings
 from .models import Citation
+from .clients.qdrant_client import get_qdrant_client, QdrantClientWrapper
+from .clients.neon_client import get_neon_client, NeonClient
 
 # Global clients (initialized on startup)
-qdrant_client: Optional[QdrantClient] = None
-db_pool: Optional[asyncpg.Pool] = None
+qdrant_client: Optional[QdrantClientWrapper] = None
+neon_client: Optional[NeonClient] = None
 
 
-async def init_qdrant_client() -> QdrantClient:
+async def init_qdrant_client() -> QdrantClientWrapper:
     """
-    Initialize Qdrant client with configuration
+    Initialize Qdrant Cloud client
 
     Returns:
-        QdrantClient instance
+        QdrantClientWrapper instance
     """
     global qdrant_client
 
-    config = get_qdrant_config()
-
     try:
-        qdrant_client = QdrantClient(
-            url=config['url'],
-            api_key=config['api_key'],
-            prefer_grpc=config.get('prefer_grpc', True)
-        )
-
-        print(f"✅ Connected to Qdrant at {config['url']}")
+        qdrant_client = get_qdrant_client()
+        qdrant_client.create_collection_if_not_exists()
         return qdrant_client
 
     except Exception as e:
-        print(f"❌ Failed to connect to Qdrant: {str(e)}")
+        print(f"[ERROR] Failed to initialize Qdrant: {str(e)}")
         raise
 
 
-async def init_neon_pool() -> asyncpg.Pool:
+async def init_neon_pool() -> NeonClient:
     """
-    Initialize Neon PostgreSQL connection pool
+    Initialize Neon PostgreSQL client
 
     Returns:
-        asyncpg.Pool instance
+        NeonClient instance
     """
-    global db_pool
-
-    config = get_database_config()
+    global neon_client
 
     try:
-        db_pool = await asyncpg.create_pool(
-            config['url'],
-            min_size=config['min_size'],
-            max_size=config['max_size']
-        )
-
-        print(f"✅ Connected to Neon PostgreSQL (pool size: {config['min_size']}-{config['max_size']})")
-        return db_pool
+        neon_client = await get_neon_client()
+        await neon_client.init_tables()
+        return neon_client
 
     except Exception as e:
-        print(f"❌ Failed to connect to Neon: {str(e)}")
+        print(f"[ERROR] Failed to initialize Neon: {str(e)}")
         raise
 
 
 async def close_connections():
     """Close Qdrant and Neon connections"""
-    global qdrant_client, db_pool
+    global neon_client
 
-    if qdrant_client:
-        qdrant_client.close()
-        print("✅ Closed Qdrant client")
+    # Qdrant client doesn't need explicit closing (HTTP-based)
 
-    if db_pool:
-        await db_pool.close()
-        print("✅ Closed Neon pool")
+    if neon_client:
+        await neon_client.disconnect()
+        print("[OK] Closed Neon connection")
 
 
-async def create_qdrant_collection(
-    collection_name: str = settings.QDRANT_COLLECTION_NAME,
-    vector_size: int = settings.QDRANT_VECTOR_SIZE,
-    distance: str = settings.QDRANT_DISTANCE
-):
+def get_or_create_collection() -> QdrantClientWrapper:
     """
-    Create Qdrant collection with specified configuration
-
-    Args:
-        collection_name: Name of the collection
-        vector_size: Dimension of vectors (default: 1536)
-        distance: Distance metric (default: Cosine)
-    """
-    if not qdrant_client:
-        raise RuntimeError("Qdrant client not initialized. Call init_qdrant_client() first.")
-
-    try:
-        # Check if collection exists
-        collections = qdrant_client.get_collections().collections
-        collection_names = [col.name for col in collections]
-
-        if collection_name in collection_names:
-            print(f"ℹ️  Collection '{collection_name}' already exists")
-            return
-
-        # Create collection
-        qdrant_client.create_collection(
-            collection_name=collection_name,
-            vectors_config=VectorParams(
-                size=vector_size,
-                distance=Distance.COSINE if distance == "Cosine" else Distance.EUCLID
-            )
-        )
-
-        print(f"✅ Created Qdrant collection: {collection_name} ({vector_size}-dim, {distance})")
-
-    except Exception as e:
-        print(f"❌ Error creating collection: {str(e)}")
-        raise
-
-
-async def upsert_chunks_to_qdrant(
-    chunks: List[Dict],
-    collection_name: str = settings.QDRANT_COLLECTION_NAME
-):
-    """
-    Upsert chunks with embeddings to Qdrant
-
-    Args:
-        chunks: List of dicts with keys: id, embedding, metadata
-        collection_name: Target collection name
-    """
-    if not qdrant_client:
-        raise RuntimeError("Qdrant client not initialized")
-
-    try:
-        points = [
-            PointStruct(
-                id=str(chunk['id']),
-                vector=chunk['embedding'],
-                payload=chunk['metadata']
-            )
-            for chunk in chunks
-        ]
-
-        qdrant_client.upsert(
-            collection_name=collection_name,
-            points=points
-        )
-
-        print(f"✅ Upserted {len(chunks)} chunks to Qdrant")
-
-    except Exception as e:
-        print(f"❌ Error upserting to Qdrant: {str(e)}")
-        raise
-
-
-async def search_qdrant(
-    query_embedding: List[float],
-    top_k: int = settings.RAG_TOP_K,
-    similarity_threshold: float = settings.RAG_SIMILARITY_THRESHOLD,
-    filter_metadata: Optional[Dict] = None,
-    collection_name: str = settings.QDRANT_COLLECTION_NAME
-) -> List[Tuple[str, float, Dict]]:
-    """
-    Search Qdrant for similar chunks
-
-    Args:
-        query_embedding: Query vector (1536-dim)
-        top_k: Number of results to return
-        similarity_threshold: Minimum cosine similarity score (0-1)
-        filter_metadata: Optional metadata filters (e.g., {"module": 1})
-        collection_name: Collection to search
+    Get or create Qdrant collection
 
     Returns:
-        List of tuples: (chunk_id, similarity_score, metadata)
+        QdrantClientWrapper instance
+    """
+    global qdrant_client
+
+    if not qdrant_client:
+        # Use the synchronous getter instead of async init
+        qdrant_client = get_qdrant_client()
+
+    return qdrant_client
+
+
+def upsert_chunks_to_qdrant(chunks: List[Dict]):
+    """
+    Upsert chunks with embeddings to Qdrant Cloud
+
+    Args:
+        chunks: List of dicts with keys: id, embedding, content, metadata
     """
     if not qdrant_client:
-        raise RuntimeError("Qdrant client not initialized")
+        get_or_create_collection()
 
     try:
-        # Build filter if provided
-        query_filter = None
-        if filter_metadata:
-            conditions = []
-            for key, value in filter_metadata.items():
-                conditions.append(
-                    FieldCondition(
-                        key=key,
-                        match=MatchValue(value=value)
-                    )
-                )
-            query_filter = Filter(must=conditions)
+        success = qdrant_client.upsert_chunks(chunks)
+        if not success:
+            raise RuntimeError("Failed to upsert chunks to Qdrant")
 
-        # Search
-        results = qdrant_client.search(
-            collection_name=collection_name,
-            query_vector=query_embedding,
-            limit=top_k,
-            query_filter=query_filter,
-            score_threshold=similarity_threshold
+    except Exception as e:
+        print(f"[ERROR] Error upserting to Qdrant: {str(e)}")
+        raise
+
+
+def search_qdrant(
+    query_embedding: List[float],
+    top_k: int = settings.RAG_TOP_K,
+    filter_metadata: Optional[Dict] = None
+) -> List[Tuple[str, float, Dict, str]]:
+    """
+    Search Qdrant Cloud for similar chunks
+
+    Args:
+        query_embedding: Query vector (384-dim)
+        top_k: Number of results to return
+        filter_metadata: Optional metadata filters (e.g., {"module": 1})
+
+    Returns:
+        List of tuples: (chunk_id, similarity_score, metadata, content)
+    """
+    if not qdrant_client:
+        get_or_create_collection()
+
+    try:
+        search_results = qdrant_client.search(
+            query_embedding=query_embedding,
+            top_k=top_k,
+            filter_metadata=filter_metadata,
+            score_threshold=settings.RAG_SIMILARITY_THRESHOLD
         )
 
-        # Extract results
-        search_results = [
-            (result.id, result.score, result.payload)
-            for result in results
-        ]
-
-        print(f"✅ Found {len(search_results)} chunks in Qdrant (threshold: {similarity_threshold})")
         return search_results
 
     except Exception as e:
-        print(f"❌ Error searching Qdrant: {str(e)}")
+        print(f"[ERROR] Error searching Qdrant: {str(e)}")
         raise
 
 
-async def get_chunk_from_neon(chunk_id: str) -> Optional[Dict]:
+def get_chunk_from_qdrant(chunk_id: str) -> Optional[Dict]:
     """
-    Retrieve chunk metadata from Neon PostgreSQL
+    Retrieve chunk from Qdrant by ID
 
     Args:
-        chunk_id: UUID of the chunk
+        chunk_id: ID of the chunk
 
     Returns:
         Dict with chunk data or None if not found
     """
-    if not db_pool:
-        raise RuntimeError("Neon pool not initialized")
+    if not qdrant_client:
+        get_or_create_collection()
 
     try:
-        async with db_pool.acquire() as conn:
-            row = await conn.fetchrow(
-                """
-                SELECT id, chapter_id, content, heading, position, token_count,
-                       metadata, created_at
-                FROM chunks
-                WHERE id = $1
-                """,
-                UUID(chunk_id)
-            )
-
-            if row:
-                return dict(row)
-            return None
+        return qdrant_client.get_chunk(chunk_id)
 
     except Exception as e:
-        print(f"❌ Error fetching chunk from Neon: {str(e)}")
+        print(f"[ERROR] Error fetching chunk from Qdrant: {str(e)}")
         raise
 
 
-async def get_chunks_batch_from_neon(chunk_ids: List[str]) -> List[Dict]:
+def get_chunks_batch_from_qdrant(chunk_ids: List[str]) -> List[Dict]:
     """
-    Retrieve multiple chunks from Neon PostgreSQL
+    Retrieve multiple chunks from Qdrant
 
     Args:
-        chunk_ids: List of chunk UUIDs
+        chunk_ids: List of chunk IDs
 
     Returns:
         List of dicts with chunk data
     """
-    if not db_pool:
-        raise RuntimeError("Neon pool not initialized")
+    if not qdrant_client:
+        get_or_create_collection()
 
     try:
-        async with db_pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT c.id, c.chapter_id, c.content, c.heading, c.position,
-                       c.token_count, c.metadata, c.created_at,
-                       ch.title as chapter_title, ch.module, ch.week
-                FROM chunks c
-                JOIN chapters ch ON c.chapter_id = ch.id
-                WHERE c.id = ANY($1::uuid[])
-                ORDER BY ch.week, c.position
-                """,
-                [UUID(cid) for cid in chunk_ids]
-            )
-
-            return [dict(row) for row in rows]
+        return qdrant_client.get_chunks_batch(chunk_ids)
 
     except Exception as e:
-        print(f"❌ Error fetching chunks batch from Neon: {str(e)}")
+        print(f"[ERROR] Error fetching chunks batch from Qdrant: {str(e)}")
         raise
 
 
@@ -296,7 +187,7 @@ async def log_query_to_neon(
     citations: List[Citation],
     response_time_ms: int,
     user_ip_hash: Optional[str] = None
-) -> UUID:
+) -> str:
     """
     Log query to Neon PostgreSQL for analytics
 
@@ -310,39 +201,31 @@ async def log_query_to_neon(
         user_ip_hash: Hashed user IP (optional)
 
     Returns:
-        UUID of the logged query
+        UUID string of the logged query
     """
-    if not db_pool:
-        raise RuntimeError("Neon pool not initialized")
+    if not neon_client:
+        await init_neon_pool()
 
     try:
-        async with db_pool.acquire() as conn:
-            query_id = uuid4()
+        # Convert Citation objects to dicts
+        citations_dicts = [c.dict() for c in citations]
 
-            await conn.execute(
-                """
-                INSERT INTO queries
-                (id, question_text, mode, retrieved_chunk_ids, answer_text,
-                 citations, response_time_ms, user_ip_hash, created_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-                """,
-                query_id,
-                question,
-                mode,
-                [UUID(cid) for cid in chunk_ids],
-                answer,
-                [c.dict() for c in citations],  # Convert to JSON
-                response_time_ms,
-                user_ip_hash
-            )
+        query_id = await neon_client.log_query(
+            question=question,
+            mode=mode,
+            chunk_ids=chunk_ids,
+            answer=answer,
+            citations=citations_dicts,
+            response_time_ms=response_time_ms,
+            user_ip_hash=user_ip_hash
+        )
 
-            print(f"✅ Logged query to Neon (ID: {query_id})")
-            return query_id
+        return query_id
 
     except Exception as e:
-        print(f"⚠️ Warning: Failed to log query to Neon: {str(e)}")
+        print(f"[WARNING] Warning: Failed to log query to Neon: {str(e)}")
         # Don't raise - logging failure shouldn't break the API
-        return uuid4()
+        return str(uuid4())
 
 
 def extract_citations(chunks: List[Dict]) -> List[Citation]:
@@ -350,7 +233,7 @@ def extract_citations(chunks: List[Dict]) -> List[Citation]:
     Extract citations from retrieved chunks
 
     Args:
-        chunks: List of chunk dicts from Neon
+        chunks: List of chunk dicts from ChromaDB
 
     Returns:
         List of Citation objects
@@ -365,12 +248,37 @@ def extract_citations(chunks: List[Dict]) -> List[Citation]:
         week = chunk.get('week', 1)
 
         # Generate URL from module and week
-        # Example: /docs/module-01-ros2/week-02-ros2-fundamentals#section-slug
-        module_slug = f"module-{module:02d}-ros2"  # TODO: Map module numbers to slugs
-        week_slug = f"week-{week:02d}-{chapter_title.lower().replace(' ', '-')}"
-        section_slug = section.lower().replace(' ', '-').replace('>', '-')
+        # Map module numbers to slugs
+        module_slugs = {
+            1: "module-01-ros2",
+            2: "module-02-digital-twin",
+            3: "module-03-isaac-sim",
+            4: "module-04-vla"
+        }
+        module_slug = module_slugs.get(module, f"module-{module:02d}")
 
-        url = f"/docs/{module_slug}/{week_slug}#{section_slug}"
+        # Map chapter titles to actual file slugs (matches actual .md file names)
+        chapter_slug_map = {
+            "Physical AI Introduction & Foundations": "physical-ai-intro",
+            "ROS 2 Fundamentals": "ros2-fundamentals",
+            "NVIDIA Isaac Sim": "isaac-sim",
+            "VLA Systems Implementation": "vla-systems",
+            "Capstone Integration Project": "capstone-project"
+        }
+
+        chapter_slug = chapter_slug_map.get(
+            chapter_title,
+            chapter_title.lower().replace(' ', '-').replace('&', '').replace('  ', '-')
+        )
+
+        week_slug = f"week-{week:02d}-{chapter_slug}"
+        section_slug = section.lower().replace(' ', '-').replace('.', '').replace('>', '').replace(':', '').replace('(', '').replace(')', '')
+
+        # Handle capstone (which is in docs/capstone/ not in a module folder)
+        if week == 13 or chapter_title == "Capstone Integration Project":
+            url = f"/docs/capstone/{week_slug}#{section_slug}"
+        else:
+            url = f"/docs/{module_slug}/{week_slug}#{section_slug}"
 
         # Create citation key to avoid duplicates
         citation_key = f"{chapter_title}|{section}"
@@ -386,23 +294,21 @@ def extract_citations(chunks: List[Dict]) -> List[Citation]:
     return citations
 
 
-async def test_qdrant_connection() -> bool:
+def test_qdrant_connection() -> bool:
     """
-    Test Qdrant connection
+    Test Qdrant Cloud connection
 
     Returns:
         bool: True if connected, False otherwise
     """
     try:
         if not qdrant_client:
-            await init_qdrant_client()
+            init_qdrant_client()
 
-        collections = qdrant_client.get_collections()
-        print(f"✅ Qdrant connection successful ({len(collections.collections)} collections)")
-        return True
+        return qdrant_client.test_connection()
 
     except Exception as e:
-        print(f"❌ Qdrant connection failed: {str(e)}")
+        print(f"[ERROR] Qdrant connection failed: {str(e)}")
         return False
 
 
@@ -414,16 +320,65 @@ async def test_neon_connection() -> bool:
         bool: True if connected, False otherwise
     """
     try:
-        if not db_pool:
+        if not neon_client:
             await init_neon_pool()
 
-        async with db_pool.acquire() as conn:
-            result = await conn.fetchval("SELECT 1")
-            if result == 1:
-                print("✅ Neon connection successful")
-                return True
-            return False
+        return await neon_client.test_connection()
 
     except Exception as e:
-        print(f"❌ Neon connection failed: {str(e)}")
+        print(f"[ERROR] Neon connection failed: {str(e)}")
         return False
+
+
+def get_collection_stats() -> Dict:
+    """
+    Get statistics about the Qdrant collection
+
+    Returns:
+        Dict with collection stats
+    """
+    if not qdrant_client:
+        get_or_create_collection()
+
+    try:
+        return qdrant_client.get_collection_stats()
+
+    except Exception as e:
+        print(f"[ERROR] Error getting collection stats: {str(e)}")
+        return {
+            "total_chunks": 0,
+            "error": str(e)
+        }
+
+
+# Cloud Stack Benefits
+"""
+Cloud Stack Benefits (Qdrant + Neon vs ChromaDB + SQLite):
+===========================================================
+
+1. Vector Storage:
+   - Qdrant Cloud: 1GB free cluster, auto-scaled, replicated
+   - vs ChromaDB: Local storage, manual backups
+
+2. Database:
+   - Neon PostgreSQL: Serverless, auto-pause, 0.5GB free
+   - vs SQLite: Single-file, limited concurrency
+
+3. Performance:
+   - Qdrant: ~100-200ms (API latency, but globally accessible)
+   - Neon: ~10-30ms (cloud latency, connection pooling)
+   - Overall: Slightly slower but enables serverless deployment
+
+4. Deployment:
+   - Cloud: Deploy anywhere (Vercel, Netlify, Render, Railway, Fly.io)
+   - Local: Requires persistent disk, tied to single server
+
+5. Cost:
+   - 100% FREE (Groq 30 req/min + Qdrant 1GB + Neon 0.5GB + sentence-transformers)
+   - No credit card required for any service
+
+6. Scalability:
+   - Qdrant: Auto-scales to handle traffic spikes
+   - Neon: Auto-scales compute based on usage
+   - Can upgrade to paid tiers when needed
+"""

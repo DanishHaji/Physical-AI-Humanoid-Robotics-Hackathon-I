@@ -20,31 +20,33 @@ This textbook takes you on a comprehensive journey from fundamental robotics con
 
 ## 📚 Course Structure
 
-This textbook is organized into **4 major modules** spanning **13 weeks**:
+This textbook is organized into **4 major modules** plus a **capstone integration project**:
 
-### Module 1: ROS 2 Nervous System (Weeks 1-4)
+### Module 1: ROS 2 Nervous System
 Learn the Robot Operating System 2 (ROS 2) - the de facto standard for robotic applications. Master nodes, topics, services, URDF, and build your first humanoid robot controller.
 
-- **Week 1**: Physical AI Introduction & Foundations
-- **Week 2-4**: ROS 2 Fundamentals (Nodes, Topics, Services, URDF)
+- **Chapter 1**: Physical AI Introduction & Foundations
+- **Chapter 2**: ROS 2 Fundamentals (Nodes, Topics, Services, URDF, TF2)
 
-### Module 2: Digital Twin (Weeks 5-7)
+### Module 2: Digital Twin Simulation
 Create photorealistic simulations of robots using Gazebo Harmonic and Unity ML-Agents. Learn sim-to-real transfer techniques and domain randomization.
 
-- **Week 5-7**: Gazebo + Unity Simulation Workflows
+- **Chapter 3**: Gazebo & Unity Simulation Workflows
 
-### Module 3: NVIDIA Isaac AI Brain (Weeks 8-10)
+### Module 3: NVIDIA Isaac AI Brain
 Harness GPU-accelerated robotics simulation with Isaac Sim and reinforcement learning with Isaac Lab. Train humanoid robots in photorealistic environments.
 
-- **Week 8-10**: Isaac Sim + Isaac Lab for Humanoid RL
+- **Chapter 4**: Isaac Sim Platform & Isaac Lab for Humanoid RL
 
-### Module 4: Vision-Language-Action (VLA) (Weeks 11-12)
+### Module 4: Vision-Language-Action (VLA)
 Integrate computer vision, large language models, and action planning to build robots that understand language commands and execute complex tasks.
 
-- **Week 11-12**: VLA Systems (Vision + Language → Action)
+- **Chapter 5**: VLA Systems (Vision + Language → Action)
 
-### Capstone Project (Week 13)
+### Capstone Integration Project
 Build a complete autonomous humanoid robot system integrating everything you've learned: voice commands → planning → navigation → object manipulation.
+
+- **Chapter 6**: End-to-End Physical AI System
 
 ---
 
@@ -96,19 +98,6 @@ Each chapter follows a structured format:
 
 ---
 
-## 🤖 Integrated AI Chatbot
-
-This textbook features an **AI-powered chatbot** that can:
-
-- Answer questions using **only textbook content** (no hallucinations)
-- Provide **citations** to specific chapters and sections
-- Support **contextual queries** (select text → ask AI)
-- Switch between **modes**: Explain, Code, Urdu (optional)
-
-**Try it now**: Click the chatbot icon in the sidebar → Ask "What is URDF in ROS 2?"
-
----
-
 ## 🌐 About the Author
 
 **Danish** - AI & Robotics Specialist
@@ -138,14 +127,14 @@ Panaversity AI-100 Course. https://github.com/your-username/Physical-AI-Humanoid
 
 ## 🚀 Ready to Begin?
 
-Start with **[Week 1: Physical AI Introduction](/docs/module-01-ros2/week-01-physical-ai-intro)** to dive into the world of embodied intelligence and humanoid robotics!
+Start with **[Chapter 1: Physical AI Introduction](/docs/module-01-ros2/week-01-physical-ai-intro)** to dive into the world of embodied intelligence and humanoid robotics!
 
-Or jump directly to any module:
-- [Module 1: ROS 2](/docs/module-01-ros2)
-- [Module 2: Digital Twin](/docs/module-02-digital-twin)
-- [Module 3: NVIDIA Isaac](/docs/module-03-isaac-sim)
-- [Module 4: VLA Systems](/docs/module-04-vla)
-- [Capstone Project](/docs/capstone)
+Or jump directly to any chapter:
+- [Module 1: ROS 2](/docs/module-01-ros2/week-01-physical-ai-intro)
+- [Module 2: Digital Twin](/docs/module-02-digital-twin/week-05-digital-twin)
+- [Module 3: NVIDIA Isaac](/docs/module-03-isaac-sim/week-08-isaac-sim)
+- [Module 4: VLA Systems](/docs/module-04-vla/week-11-vla-systems)
+- [Capstone Project](/docs/capstone/week-13-capstone-project)
 
 ---
 

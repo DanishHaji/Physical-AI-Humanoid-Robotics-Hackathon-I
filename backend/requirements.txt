@@ -1,39 +1,112 @@
+# ================================================================
+# Physical AI Textbook - Backend Dependencies (CLOUD FREE-TIER)
+# ================================================================
+# Stack: Groq + Qdrant Cloud + Neon + sentence-transformers
+# Cost: $0/month (100% free tier services)
+# ================================================================
+
 # FastAPI Framework
 fastapi==0.109.0
 uvicorn[standard]==0.27.0
 python-multipart==0.0.6
 
-# Database Clients
-qdrant-client==1.7.0
-asyncpg==0.29.0
-psycopg2-binary==2.9.9
+# ================================================================
+# CLOUD FREE-TIER SERVICES (LLM + Vector DB + PostgreSQL)
+# ================================================================
 
-# OpenAI API
-openai==1.10.0
-tiktoken==0.5.2
+# Groq API (Free LLM Inference - llama-3.1-8b-instant)
+# https://console.groq.com - 30 req/min free tier
+groq>=0.30.0
 
-# Data Validation
+# Qdrant Cloud (Free Vector Database - 1GB free)
+# https://cloud.qdrant.io - 1GB cluster free tier
+qdrant-client>=1.7.0
+
+# Neon PostgreSQL (Free Serverless Database - 0.5GB free)
+# https://neon.tech - 0.5GB storage, 100 compute hours/month
+asyncpg>=0.29.0
+psycopg2-binary>=2.9.9  # For sync operations
+
+# ================================================================
+# LOCAL EMBEDDINGS (FREE OFFLINE)
+# ================================================================
+
+# Sentence Transformers (Local embeddings generation)
+sentence-transformers>=2.3.1
+torch>=2.2.0             # Required for sentence-transformers
+transformers>=4.36.2
+
+# ================================================================
+# DATA VALIDATION & CONFIGURATION
+# ================================================================
+
 pydantic==2.5.0
 pydantic-settings==2.1.0
+email-validator>=2.1.0  # Required for EmailStr validation
 
 # Environment Variables
 python-dotenv==1.0.0
 
-# HTTP Client
-httpx==0.26.0
+# ================================================================
+# HTTP CLIENT & RATE LIMITING
+# ================================================================
 
-# Rate Limiting
-slowapi==0.1.9
+httpx>=0.26.0
+slowapi==0.1.9           # Rate limiting for free-tier protection
 
-# CORS Support
-python-jose[cryptography]==3.3.0
+# ================================================================
+# TESTING & LOGGING
+# ================================================================
 
-# Testing
 pytest==7.4.3
 pytest-asyncio==0.23.3
-
-# Logging
 structlog==24.1.0
 
-# Utilities
+# ================================================================
+# AUTHENTICATION & SECURITY
+# ================================================================
+
+passlib>=1.7.4       # Password hashing
+bcrypt==4.0.1        # Compatible version for passlib (fixes __about__ attribute issue)
+python-jose[cryptography]>=3.3.0  # JWT tokens
+
+# ================================================================
+# UTILITIES
+# ================================================================
+
 python-dateutil==2.8.2
+
+# ================================================================
+# DEPLOYMENT NOTES
+# ================================================================
+#
+# 1. GROQ API (FREE):
+#    - Sign up: https://console.groq.com
+#    - Get API key from dashboard
+#    - Model: llama-3.1-8b-instant (free, fast)
+#    - Rate limit: 30 requests/min
+#
+# 2. QDRANT CLOUD (FREE):
+#    - Sign up: https://cloud.qdrant.io
+#    - Create free 1GB cluster
+#    - Get API key + cluster URL
+#    - Storage: 1GB vectors free
+#
+# 3. NEON POSTGRESQL (FREE):
+#    - Sign up: https://neon.tech
+#    - Create database (free tier)
+#    - Get connection string
+#    - Limits: 0.5GB storage, 100 compute hours/month
+#
+# 4. DEPLOY BACKEND (FREE):
+#    - Render.com: 750 hours/month free
+#    - Railway.app: $5 free credits/month
+#    - Fly.io: 3 shared-cpu VMs free
+#
+# ================================================================
+# INSTALLATION
+# ================================================================
+#
+# pip install -r requirements.txt
+#
+# ================================================================

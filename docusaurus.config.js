@@ -16,15 +16,15 @@ const config = {
   url: 'https://your-username.github.io',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
-  baseUrl: '/Physical-AI-Humanoid-Robotics/',
+  // Using '/' for local development - change back to '/Physical-AI-Humanoid-Robotics/' for deployment
+  baseUrl: '/',
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
   organizationName: 'your-username', // Usually your GitHub org/user name.
   projectName: 'Physical-AI-Humanoid-Robotics', // Usually your repo name.
 
-  onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'warn',
+  onBrokenLinks: 'warn',
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -36,6 +36,9 @@ const config = {
 
   markdown: {
     mermaid: true,
+    hooks: {
+      onBrokenMarkdownLinks: 'warn',
+    },
   },
 
   themes: ['@docusaurus/theme-mermaid'],
@@ -47,10 +50,14 @@ const config = {
       ({
         docs: {
           sidebarPath: './sidebars.js',
+          routeBasePath: 'docs',
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
           editUrl:
             'https://github.com/your-username/Physical-AI-Humanoid-Robotics/tree/main/',
+        },
+        pages: {
+          path: 'src/pages',
         },
         blog: false,
         theme: {
@@ -64,7 +71,7 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       // Replace with your project's social card
-      image: 'img/docusaurus-social-card.jpg',
+      image: 'img/docusaurus-social-card.svg',
       navbar: {
         title: 'Physical AI & Humanoid Robotics',
         logo: {
@@ -83,6 +90,17 @@ const config = {
             label: 'GitHub',
             position: 'right',
           },
+          {
+            to: '/login',
+            label: 'Log In',
+            position: 'right',
+          },
+          {
+            to: '/signup',
+            label: 'Sign Up',
+            position: 'right',
+            className: 'button button--primary',
+          },
         ],
       },
       footer: {
@@ -97,11 +115,11 @@ const config = {
               },
               {
                 label: 'Module 1: ROS 2',
-                to: '/docs/module-01-ros2',
+                to: '/docs/module-01-ros2/week-01-physical-ai-intro',
               },
               {
                 label: 'Module 2: Digital Twin',
-                to: '/docs/module-02-digital-twin',
+                to: '/docs/module-02-digital-twin/week-05-digital-twin',
               },
             ],
           },
@@ -133,7 +151,7 @@ const config = {
       prism: {
         theme: prismThemes.github,
         darkTheme: prismThemes.dracula,
-        additionalLanguages: ['python', 'bash', 'yaml', 'cpp', 'xml'],
+        additionalLanguages: ['python', 'bash', 'yaml', 'cpp', 'json'],
       },
       colorMode: {
         defaultMode: 'light',

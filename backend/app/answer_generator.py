@@ -1,24 +1,22 @@
 """
-Answer Generation Module
-Generate answers using OpenAI GPT-4o-mini with retrieved context
+Answer Generation Module (Cloud Free-Tier Stack)
+Generate answers using Groq API with retrieved context
+Free tier: 30 requests/min
 """
 
-from openai import AsyncOpenAI
 from typing import List, Dict
 from .config import settings
-
-# Initialize OpenAI client
-client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+from .clients.groq_client import get_groq_client
 
 
-async def generate_answer(
+def generate_answer(
     question: str,
     context_chunks: List[Dict],
     mode: str = "explain",
     selected_text: str = None
 ) -> str:
     """
-    Generate answer using OpenAI GPT-4o-mini with retrieved context
+    Generate answer using Groq API with retrieved context
 
     Args:
         question: User's question
@@ -30,6 +28,9 @@ async def generate_answer(
         str: Generated answer
     """
     try:
+        # Get Groq client
+        groq_client = get_groq_client()
+
         # Build context string from chunks
         context = build_context(context_chunks)
 
@@ -39,25 +40,19 @@ async def generate_answer(
         # Build user message
         user_message = build_user_message(question, context, selected_text)
 
-        # Call OpenAI API
-        response = await client.chat.completions.create(
-            model=settings.OPENAI_CHAT_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message}
-            ],
-            max_tokens=settings.OPENAI_MAX_TOKENS,
-            temperature=settings.OPENAI_TEMPERATURE
-        )
+        # Call Groq API
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message}
+        ]
 
-        # Extract answer
-        answer = response.choices[0].message.content.strip()
+        answer = groq_client.chat_completion(messages=messages)
 
-        print(f"✅ Generated answer ({len(answer)} chars) using {response.usage.total_tokens} tokens")
+        print(f"[OK] Generated answer ({len(answer)} chars) using Groq {settings.GROQ_MODEL}")
         return answer
 
     except Exception as e:
-        print(f"❌ Error generating answer: {str(e)}")
+        print(f"[ERROR] Error generating answer with Groq: {str(e)}")
         raise
 
 
@@ -166,7 +161,7 @@ QUESTION: {question}
 Please answer based only on the textbook content above."""
 
 
-async def generate_no_context_response(question: str, mode: str = "explain") -> str:
+def generate_no_context_response(question: str, mode: str = "explain") -> str:
     """
     Generate response when no relevant context is found
 
@@ -190,7 +185,7 @@ async def generate_no_context_response(question: str, mode: str = "explain") -> 
     return fallback_responses.get(mode, fallback_responses["explain"])
 
 
-async def test_answer_generation() -> bool:
+def test_answer_generation() -> bool:
     """
     Test answer generation with dummy context
 
@@ -198,6 +193,7 @@ async def test_answer_generation() -> bool:
         bool: True if successful, False otherwise
     """
     try:
+        groq_client = get_groq_client()
         test_question = "What is ROS 2?"
         test_context = [{
             'content': "ROS 2 (Robot Operating System 2) is an open-source framework for building robot applications.",
@@ -205,40 +201,83 @@ async def test_answer_generation() -> bool:
             'heading': "Introduction to ROS 2"
         }]
 
-        answer = await generate_answer(test_question, test_context, mode="explain")
+        answer = generate_answer(test_question, test_context, mode="explain")
 
         if len(answer) > 10:
-            print(f"✅ Answer generation test successful")
+            print(f"[OK] Answer generation test successful")
             return True
         else:
-            print(f"❌ Answer generation test failed: answer too short")
+            print(f"[ERROR] Answer generation test failed: answer too short")
             return False
 
     except Exception as e:
-        print(f"❌ Answer generation test failed: {str(e)}")
+        print(f"[ERROR] Answer generation test failed: {str(e)}")
         return False
 
 
-def estimate_answer_cost(
-    prompt_tokens: int,
-    completion_tokens: int
-) -> float:
+def test_groq_connection() -> bool:
     """
-    Estimate cost for answer generation using gpt-4o-mini
-
-    Args:
-        prompt_tokens: Number of input tokens
-        completion_tokens: Number of output tokens
+    Test Groq API connection
 
     Returns:
-        float: Estimated cost in USD
+        bool: True if successful, False otherwise
     """
-    # gpt-4o-mini pricing: $0.15/1M input tokens, $0.60/1M output tokens
-    input_price_per_million = 0.15
-    output_price_per_million = 0.60
+    try:
+        groq_client = get_groq_client()
+        return groq_client.test_connection()
 
-    input_cost = (prompt_tokens / 1_000_000) * input_price_per_million
-    output_cost = (completion_tokens / 1_000_000) * output_price_per_million
+    except Exception as e:
+        print(f"[ERROR] Groq connection test failed: {str(e)}")
+        return False
 
-    total_cost = input_cost + output_cost
-    return round(total_cost, 6)
+
+def get_model_info() -> Dict:
+    """
+    Get information about the current Groq model
+
+    Returns:
+        Dict with model metadata
+    """
+    try:
+        groq_client = get_groq_client()
+        return groq_client.get_model_info()
+
+    except Exception as e:
+        print(f"[WARNING] Could not get model info: {str(e)}")
+        return {
+            "model_name": settings.GROQ_MODEL,
+            "error": str(e)
+        }
+
+
+# Performance comparison (for reference)
+"""
+Groq Performance (Cloud Free-Tier):
+┌─────────────────────┬─────────────────┬──────────────────────┐
+│ Feature             │ OpenAI          │ Groq (Free Tier)     │
+├─────────────────────┼─────────────────┼──────────────────────┤
+│ Model               │ gpt-4o-mini     │ llama-3.1-8b-instant │
+│ Parameters          │ Unknown         │ 8 billion            │
+│ Cost                │ $0.15/1M in     │ FREE                 │
+│                     │ $0.60/1M out    │                      │
+│ Speed               │ ~500ms          │ ~400ms (LPU fast!)   │
+│ Max tokens          │ 128K context    │ 8K context           │
+│ Quality             │ Very High       │ Good                 │
+│ Deployment          │ Cloud (OpenAI)  │ Cloud (Groq)         │
+│ Internet Required   │ Yes             │ Yes                  │
+│ Rate Limits         │ 10K TPM         │ 30 req/min (free)    │
+└─────────────────────┴─────────────────┴──────────────────────┘
+
+For textbook RAG use case:
+- Groq's llama-3.1-8b-instant is sufficient for educational Q&A
+- LPU architecture makes it FASTER than OpenAI (400ms vs 500ms)
+- 30 req/min free tier is enough for small deployments
+- No local hardware required (serverless deployment)
+- Can upgrade to paid tier for higher rate limits
+
+Benefits over Ollama (local):
+- No local hardware/GPU needed
+- Consistent performance regardless of server specs
+- Deploy anywhere (Vercel, Netlify, etc.)
+- Lower latency than running on cheap cloud VMs
+"""

@@ -26,13 +26,14 @@ from .retrieval import (
     init_neon_pool,
     close_connections,
     search_qdrant,
-    get_chunks_batch_from_neon,
+    get_chunks_batch_from_qdrant,
     log_query_to_neon,
     extract_citations,
     test_qdrant_connection,
     test_neon_connection
 )
 from .answer_generator import generate_answer, generate_no_context_response
+from .auth.router import router as auth_router
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -43,17 +44,30 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
+# Include authentication router
+app.include_router(auth_router)
+
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS middleware
+# CORS middleware - explicitly allow development origins
+# This ensures the development setup works while we debug the settings issue
+all_origins = [
+    "http://localhost:3000",
+    "http://localhost:3001",  # Docusaurus dev server
+    "http://localhost:8000",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",  # Alternative format
+    "http://127.0.0.1:8000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=all_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -62,31 +76,31 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     """Initialize database connections and services"""
-    print(f"🚀 Starting {settings.APP_NAME} v{settings.APP_VERSION}")
-    print(f"📍 Environment: {settings.ENVIRONMENT}")
-    print(f"🔧 Debug mode: {settings.DEBUG}")
+    print(f"[INFO] Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+    print(f"[INFO] Environment: {settings.ENVIRONMENT}")
+    print(f"[INFO] Debug mode: {settings.DEBUG}")
 
     # Initialize Qdrant client
     try:
         await init_qdrant_client()
     except Exception as e:
-        print(f"⚠️  Warning: Qdrant initialization failed: {str(e)}")
+        print(f"[WARNING]  Warning: Qdrant initialization failed: {str(e)}")
 
     # Initialize Neon PostgreSQL pool
     try:
         await init_neon_pool()
     except Exception as e:
-        print(f"⚠️  Warning: Neon initialization failed: {str(e)}")
+        print(f"[WARNING]  Warning: Neon initialization failed: {str(e)}")
 
-    # Validate OpenAI API key
+    # Validate sentence-transformers embedding model
     try:
-        openai_ok = await test_embedding_connection()
-        if not openai_ok:
-            print("⚠️  Warning: OpenAI connection test failed")
+        embedding_ok = test_embedding_connection()
+        if not embedding_ok:
+            print("[WARNING]  Warning: Embedding model test failed")
     except Exception as e:
-        print(f"⚠️  Warning: OpenAI validation failed: {str(e)}")
+        print(f"[WARNING]  Warning: Embedding model validation failed: {str(e)}")
 
-    print("✅ All services initialized successfully")
+    print("[OK] All services initialized successfully")
 
 
 # Shutdown event
@@ -98,7 +112,7 @@ async def shutdown_event():
     # Close Qdrant client and Neon pool
     await close_connections()
 
-    print("✅ Cleanup complete")
+    print("[OK] Cleanup complete")
 
 
 # Health check endpoint
@@ -114,7 +128,7 @@ async def health_check():
 
     # Check Qdrant
     try:
-        qdrant_ok = await test_qdrant_connection()
+        qdrant_ok = test_qdrant_connection()
         services["qdrant"] = "operational" if qdrant_ok else "down"
     except:
         services["qdrant"] = "down"
@@ -126,12 +140,12 @@ async def health_check():
     except:
         services["neon"] = "down"
 
-    # Check OpenAI
+    # Check Embedding Model
     try:
-        openai_ok = await test_embedding_connection()
-        services["openai"] = "operational" if openai_ok else "down"
+        embedding_ok = test_embedding_connection()
+        services["embeddings"] = "operational" if embedding_ok else "down"
     except:
-        services["openai"] = "down"
+        services["embeddings"] = "down"
 
     status = "healthy" if all(v == "operational" for v in services.values()) else "degraded"
 
@@ -173,19 +187,18 @@ async def query_chatbot(
             detected_mode = detect_query_mode(query.question)
 
         # Step 2: Generate embedding for the question
-        embedding = await generate_embedding(query.question)
+        embedding = generate_embedding(query.question)
 
         # Step 3: Retrieve top-k chunks from Qdrant
-        qdrant_results = await search_qdrant(
+        qdrant_results = search_qdrant(
             query_embedding=embedding,
-            top_k=settings.RAG_TOP_K,
-            similarity_threshold=settings.RAG_SIMILARITY_THRESHOLD
+            top_k=settings.RAG_TOP_K
         )
 
         # Check if we found any relevant chunks
         if not qdrant_results:
             # No relevant context found
-            answer = await generate_no_context_response(query.question, detected_mode)
+            answer = generate_no_context_response(query.question, detected_mode)
             citations = []
             response_time_ms = int((time.time() - start_time) * 1000)
 
@@ -196,12 +209,12 @@ async def query_chatbot(
                 response_time_ms=response_time_ms
             )
 
-        # Step 4: Fetch full chunk data from Neon
-        chunk_ids = [chunk_id for chunk_id, score, metadata in qdrant_results]
-        chunks = await get_chunks_batch_from_neon(chunk_ids)
+        # Step 4: Fetch full chunk data from Qdrant
+        chunk_ids = [chunk_id for chunk_id, score, metadata, content in qdrant_results]
+        chunks = get_chunks_batch_from_qdrant(chunk_ids)
 
-        # Step 5: Generate answer using OpenAI GPT-4o-mini
-        answer = await generate_answer(
+        # Step 5: Generate answer using Groq llama-3.1-8b-instant
+        answer = generate_answer(
             question=query.question,
             context_chunks=chunks,
             mode=detected_mode,
@@ -233,7 +246,7 @@ async def query_chatbot(
         )
 
     except Exception as e:
-        print(f"❌ Error processing query: {str(e)}")
+        print(f"[ERROR] Error processing query: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail={

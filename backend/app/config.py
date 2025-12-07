@@ -1,81 +1,129 @@
 """
-Configuration module for Physical AI Textbook RAG Backend
-Loads environment variables and provides typed config classes
+Physical AI Textbook RAG API - Configuration (Cloud Free-Tier Stack)
+Uses: Groq, Qdrant Cloud, Neon PostgreSQL, sentence-transformers
+Cost: $0/month (100% free tier)
 """
 
 from pydantic_settings import BaseSettings
-from typing import Optional
+from typing import List
 import os
+from pydantic import field_validator
+import json
+
+
+def parse_json_list(value: str) -> List[str]:
+    """Parse a JSON array from string value"""
+    if isinstance(value, str):
+        if value.startswith('[') and value.endswith(']'):
+            try:
+                result = json.loads(value)
+                if isinstance(result, list):
+                    return result
+            except json.JSONDecodeError:
+                pass
+        # If JSON parsing fails or it's not a list, split by comma
+        return [item.strip() for item in value.split(',') if item.strip()]
+    return value
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables"""
-
-    # Application
-    APP_NAME: str = "Physical AI Textbook RAG API"
-    APP_VERSION: str = "1.0.0"
+    # Application Settings
+    APP_NAME: str = "Physical AI Textbook RAG API (Cloud Free-Tier)"
+    APP_VERSION: str = "3.0.0"
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
-
-    # Server
     HOST: str = "0.0.0.0"
     PORT: int = 8000
     RELOAD: bool = True
 
-    # OpenAI API
-    OPENAI_API_KEY: str
-    OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
-    OPENAI_CHAT_MODEL: str = "gpt-4o-mini"
-    OPENAI_MAX_TOKENS: int = 500
-    OPENAI_TEMPERATURE: float = 0.1
+    # Groq API Configuration (Cloud LLM - FREE)
+    # Sign up: https://console.groq.com
+    # Free tier: 30 requests/min
+    GROQ_API_KEY: str = ""  # Required - get from Groq console
+    GROQ_MODEL: str = "llama-3.1-8b-instant"  # Free, fast (8B params)
+    GROQ_TEMPERATURE: float = 0.1
+    GROQ_MAX_TOKENS: int = 500
+    GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
 
-    # Qdrant Vector Database
-    QDRANT_URL: str
-    QDRANT_API_KEY: Optional[str] = None
+    # Sentence Transformers Configuration (Local Embeddings - FREE)
+    # Downloads automatically on first run, no API key needed
+    EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"  # 384 dimensions, fast (90MB)
+    # Alternative: "all-mpnet-base-v2" (768 dimensions, better quality, 420MB)
+    EMBEDDING_DEVICE: str = "cpu"  # Use "cuda" if you have GPU
+    VECTOR_SIZE: int = 384  # Must match embedding model dimensions
+
+    # Qdrant Cloud Configuration (Cloud Vector Database - FREE)
+    # Sign up: https://cloud.qdrant.io
+    # Free tier: 1GB cluster
+    QDRANT_URL: str = ""  # Required - get from Qdrant Cloud dashboard
+    QDRANT_API_KEY: str = ""  # Required - get from Qdrant Cloud dashboard
     QDRANT_COLLECTION_NAME: str = "textbook_chunks"
-    QDRANT_VECTOR_SIZE: int = 1536  # text-embedding-3-small dimension
     QDRANT_DISTANCE: str = "Cosine"
 
-    # Neon PostgreSQL
-    DATABASE_URL: str
-    DB_POOL_MIN_SIZE: int = 1
-    DB_POOL_MAX_SIZE: int = 5
+    # Neon PostgreSQL Configuration (Cloud Database - FREE)
+    # Sign up: https://neon.tech
+    # Free tier: 0.5GB storage, 100 compute hours/month
+    NEON_DATABASE_URL: str = ""  # Required - connection string from Neon dashboard
+    NEON_MAX_CONNECTIONS: int = 10
+
+    # Authentication Configuration
+    # IMPORTANT: Generate a secure random key for production!
+    # Example: python -c "import secrets; print(secrets.token_urlsafe(32))"
+    SECRET_KEY: str = "your-secret-key-change-in-production-min-32-chars"  # Required for JWT tokens
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
 
     # RAG Configuration
-    RAG_TOP_K: int = 5
-    RAG_SIMILARITY_THRESHOLD: float = 0.7
+    RAG_TOP_K: int = 8
+    RAG_SIMILARITY_THRESHOLD: float = 0.20
     RAG_CHUNK_SIZE: int = 1024
     RAG_CHUNK_OVERLAP: int = 100
 
-    # Rate Limiting
+    # Rate Limiting (protect free-tier quotas)
+    RATE_LIMIT_PER_MINUTE: int = 20  # Conservative (Groq allows 30/min)
     RATE_LIMIT_PER_HOUR: int = 100
     RATE_LIMIT_PER_DAY: int = 1000
 
-    # CORS
-    ALLOWED_ORIGINS: list[str] = [
+    # CORS Configuration
+    ALLOWED_ORIGINS: List[str] = [
         "http://localhost:3000",
+        "http://localhost:3001",  # Added for Docusaurus dev server
         "http://localhost:8000",
-        "https://your-username.github.io"
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",  # Added for alternative format
+        "http://127.0.0.1:8000",
     ]
 
-    # Query Routing Keywords
-    CODE_KEYWORDS: list[str] = ["code", "example", "implement", "snippet", "syntax", "write", "create"]
-    EXAM_KEYWORDS: list[str] = ["quiz", "exam", "test", "mcq", "assessment", "question"]
-    EXPLAIN_KEYWORDS: list[str] = ["explain", "what is", "how does", "why", "describe"]
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def validate_allowed_origins(cls, v):
+        return parse_json_list(v)
+
+
+    # Query Mode Detection Keywords
+    CODE_KEYWORDS: List[str] = [
+        "code", "example", "implement", "snippet", "syntax",
+        "write", "create", "function", "class"
+    ]
+    EXAM_KEYWORDS: List[str] = [
+        "quiz", "exam", "test", "mcq", "assessment",
+        "question", "evaluate"
+    ]
+    EXPLAIN_KEYWORDS: List[str] = [
+        "explain", "what is", "how does", "why", "describe",
+        "tell me about", "define"
+    ]
 
     class Config:
         env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = True
+        case_sensitive = False
 
 
 # Global settings instance
 settings = Settings()
 
 
-# Helper functions
 def get_settings() -> Settings:
-    """Dependency injection for FastAPI routes"""
+    """Dependency injection for settings"""
     return settings
 
 
@@ -84,30 +132,78 @@ def is_production() -> bool:
     return settings.ENVIRONMENT == "production"
 
 
-def get_database_config() -> dict:
-    """Get database connection configuration"""
-    return {
-        "url": settings.DATABASE_URL,
-        "min_size": settings.DB_POOL_MIN_SIZE,
-        "max_size": settings.DB_POOL_MAX_SIZE,
-    }
+def validate_cloud_credentials() -> dict:
+    """
+    Validate that all cloud API credentials are set
+    Returns dict of credential status
+    """
+    status = {}
+
+    # Check Groq API key
+    status["groq"] = "configured" if settings.GROQ_API_KEY else "missing"
+
+    # Check Qdrant Cloud credentials
+    status["qdrant_url"] = "configured" if settings.QDRANT_URL else "missing"
+    status["qdrant_key"] = "configured" if settings.QDRANT_API_KEY else "missing"
+
+    # Check Neon database URL
+    status["neon"] = "configured" if settings.NEON_DATABASE_URL else "missing"
+
+    # Overall status
+    all_configured = all(v == "configured" for v in status.values())
+    status["all_services"] = "ready" if all_configured else "needs_setup"
+
+    return status
 
 
-def get_qdrant_config() -> dict:
-    """Get Qdrant client configuration"""
-    return {
-        "url": settings.QDRANT_URL,
-        "api_key": settings.QDRANT_API_KEY,
-        "prefer_grpc": True,
-    }
+def get_missing_credentials() -> List[str]:
+    """
+    Get list of missing credentials with setup instructions
+    Returns list of missing credential names
+    """
+    missing = []
+
+    if not settings.GROQ_API_KEY:
+        missing.append("GROQ_API_KEY - Sign up at https://console.groq.com")
+
+    if not settings.QDRANT_URL:
+        missing.append("QDRANT_URL - Create cluster at https://cloud.qdrant.io")
+
+    if not settings.QDRANT_API_KEY:
+        missing.append("QDRANT_API_KEY - Get from Qdrant Cloud dashboard")
+
+    if not settings.NEON_DATABASE_URL:
+        missing.append("NEON_DATABASE_URL - Create database at https://neon.tech")
+
+    return missing
 
 
-def get_openai_config() -> dict:
-    """Get OpenAI API configuration"""
-    return {
-        "api_key": settings.OPENAI_API_KEY,
-        "embedding_model": settings.OPENAI_EMBEDDING_MODEL,
-        "chat_model": settings.OPENAI_CHAT_MODEL,
-        "max_tokens": settings.OPENAI_MAX_TOKENS,
-        "temperature": settings.OPENAI_TEMPERATURE,
-    }
+# Print configuration on import (for debugging)
+if settings.DEBUG:
+    credential_status = validate_cloud_credentials()
+
+    print(f"""
+==========================================================
+  Physical AI Textbook RAG - Cloud Free-Tier Stack
+==========================================================
+  LLM: Groq ({settings.GROQ_MODEL})
+  Embeddings: {settings.EMBEDDING_MODEL} ({settings.VECTOR_SIZE}d)
+  Vector DB: Qdrant Cloud (1GB free)
+  Database: Neon PostgreSQL (0.5GB free)
+  Environment: {settings.ENVIRONMENT}
+==========================================================
+  Status: {credential_status['all_services'].upper()}
+  - Groq API: {credential_status['groq']}
+  - Qdrant URL: {credential_status['qdrant_url']}
+  - Qdrant Key: {credential_status['qdrant_key']}
+  - Neon DB: {credential_status['neon']}
+==========================================================
+    """)
+
+    # Warn about missing credentials
+    missing = get_missing_credentials()
+    if missing:
+        print("[WARNING] Missing credentials:")
+        for cred in missing:
+            print(f"   - {cred}")
+        print("\nSee backend/.env.example for setup instructions\n")
