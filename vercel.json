@@ -1,0 +1,10 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "build",
+  "framework": "docusaurus",
+  "devCommand": "npm start",
+  "installCommand": "npm install",
+  "env": {
+    "REACT_APP_API_URL": "@react_app_api_url"
+  }
+}
