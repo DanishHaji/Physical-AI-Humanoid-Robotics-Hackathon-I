@@ -2,12 +2,14 @@
 
 **The Complete AI-Native Textbook - From ROS 2 to Vision-Language-Action Systems**
 
-Created by **Danish** | [Panaversity](https://www.panaversity.com) AI-100 Course
+Created by **Danish** | [Panaversity](https://www.panaversity.com) AI-100 Course | Hackathon Submission
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docusaurus](https://img.shields.io/badge/Docusaurus-3.0-green.svg)](https://docusaurus.io/)
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109-teal.svg)](https://fastapi.tiangolo.com/)
+
+> The future of work will be a partnership between people, intelligent agents (AI software), and robots. This shift won't necessarily eliminate jobs but will change what humans do, leading to a massive demand for new skills.
 
 ---
 
@@ -90,7 +92,7 @@ This is a **comprehensive AI-native textbook** covering Physical AI and Humanoid
 - **Language**: TypeScript 5.3+
 - **Styling**: CSS Modules
 - **Diagrams**: Mermaid.js (native Docusaurus support)
-- **Deployment**: GitHub Pages
+- **Deployment**: Vercel
 
 ### Backend
 - **Framework**: FastAPI 0.109+ (Python 3.11+)
@@ -98,7 +100,7 @@ This is a **comprehensive AI-native textbook** covering Physical AI and Humanoid
 - **Vector DB**: Qdrant Cloud (1GB free tier)
 - **SQL DB**: Neon Serverless Postgres (0.5GB free tier)
 - **AI/Embeddings**: OpenAI (text-embedding-3-small, gpt-4o-mini)
-- **Deployment**: Vercel Serverless Functions
+- **Deployment**: Render
 
 ### Infrastructure
 - **Version Control**: Git + GitHub
@@ -132,8 +134,8 @@ This is a **comprehensive AI-native textbook** covering Physical AI and Humanoid
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/your-username/Physical-AI-Humanoid-Robotics.git
-cd Physical-AI-Humanoid-Robotics
+git clone https://github.com/DanishHaji/Physical-AI-Humanoid-Robotics-Hackathon-I.git
+cd Physical-AI-Humanoid-Robotics-Hackathon-I
 ```
 
 ### 2. Frontend Setup (Docusaurus)
@@ -227,18 +229,17 @@ Physical-AI-Humanoid-Robotics/
 │   │   ├── main.py                # FastAPI app + routes
 │   │   ├── config.py              # Environment config
 │   │   ├── models.py              # Pydantic schemas
-│   │   ├── embeddings.py          # OpenAI embeddings (TODO)
-│   │   ├── retrieval.py           # Qdrant + Neon queries (TODO)
-│   │   └── query_router.py        # Mode detection (TODO)
-│   ├── scripts/                   # Data ingestion scripts (TODO)
-│   ├── tests/                     # Pytest tests (TODO)
+│   │   ├── embeddings.py          # OpenAI embeddings
+│   │   ├── retrieval.py           # Qdrant + Neon queries
+│   │   └── answer_generator.py    # Answer generation
+│   ├── scripts/                   # Data ingestion scripts
 │   ├── requirements.txt           # Python dependencies
 │   └── .env.example               # Environment variables template
 │
 ├── specs/                         # Feature specifications (Spec-Driven Development)
 │   └── 001-ai-textbook-gen/
 │       ├── spec.md                # Feature requirements (FR-001 to FR-040)
-│       ├── plan.md                # Implementation plan (this was just completed)
+│       ├── plan.md                # Implementation plan
 │       ├── tasks.md               # 213 granular tasks (T001-T213)
 │       ├── research.md            # Technology validation
 │       ├── data-model.md          # Entity schemas
@@ -336,42 +337,21 @@ ruff app/
 
 ## 🚢 Deployment
 
-### Frontend (GitHub Pages)
+### Frontend (Vercel)
 
-1. Update `docusaurus.config.js`:
-   ```js
-   url: 'https://your-username.github.io',
-   baseUrl: '/Physical-AI-Humanoid-Robotics/',
-   organizationName: 'your-username',
-   projectName: 'Physical-AI-Humanoid-Robotics',
-   ```
+1. Connect GitHub repository to Vercel
+2. Set build command: `npm run build`
+3. Set output directory: `build`
+4. Deploy!
 
-2. Deploy:
-   ```bash
-   npm run build
-   npm run deploy
-   ```
+### Backend (Render)
 
-   Or use GitHub Actions (`.github/workflows/deploy.yml` - coming soon)
-
-### Backend (Vercel)
-
-1. Install Vercel CLI:
-   ```bash
-   npm install -g vercel
-   ```
-
-2. Deploy:
-   ```bash
-   cd backend
-   vercel
-   ```
-
-3. Set environment variables in Vercel dashboard:
-   - `OPENAI_API_KEY`
-   - `QDRANT_URL`
-   - `QDRANT_API_KEY`
-   - `DATABASE_URL`
+1. Create new Web Service on Render
+2. Connect GitHub repository
+3. Set build command: `pip install -r backend/requirements.txt`
+4. Set start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+5. Add environment variables (OPENAI_API_KEY, QDRANT_URL, etc.)
+6. Deploy!
 
 ---
 
@@ -417,7 +397,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 - Panaversity: [https://www.panaversity.com](https://www.panaversity.com)
 - Course: AI-100 - Advanced Physical AI & Humanoid Robotics
-- GitHub: [@your-username](https://github.com/your-username)
+- GitHub: [@DanishHaji](https://github.com/DanishHaji)
 
 ---
 
@@ -425,13 +405,13 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| **Frontend (Docusaurus)** | ✅ 80% Complete | Config done, sample chapter created |
-| **Backend (FastAPI)** | ⏳ 30% Complete | Skeleton ready, RAG pipeline TODO |
-| **Chapter Content** | ⏳ 10% Complete | 1/6 chapters (placeholder intro) |
-| **RAG Chatbot** | ⏳ 20% Complete | API structure ready, embeddings TODO |
-| **Deployment** | ❌ Not Started | CI/CD pipeline TODO |
+| **Frontend (Docusaurus)** | ✅ 90% Complete | Full module structure with chapters |
+| **Backend (FastAPI)** | ✅ 70% Complete | RAG pipeline implemented |
+| **Chapter Content** | ⏳ 40% Complete | 6 chapters with content |
+| **RAG Chatbot** | ✅ 60% Complete | Embeddings + Qdrant working |
+| **Deployment** | ⏳ In Progress | Ready for Vercel + Render |
 
-**Next Steps**: Implement embedding system, Qdrant integration, and complete RAG pipeline (see `specs/001-ai-textbook-gen/tasks.md` for detailed task list)
+**Next Steps**: Complete deployment and finalize remaining chapter content
 
 ---
 
