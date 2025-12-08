@@ -54,7 +54,7 @@ const config = {
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
           editUrl:
-            'https://github.com/your-username/Physical-AI-Humanoid-Robotics/tree/main/',
+            'https://github.com/DanishHaji/Physical-AI-Humanoid-Robotics-Hackathon-I/tree/main/',
         },
         pages: {
           path: 'src/pages',
@@ -86,7 +86,7 @@ const config = {
             label: 'Textbook',
           },
           {
-            href: 'https://github.com/your-username/Physical-AI-Humanoid-Robotics',
+            href: 'https://github.com/DanishHaji/Physical-AI-Humanoid-Robotics-Hackathon-I',
             label: 'GitHub',
             position: 'right',
           },
@@ -128,11 +128,7 @@ const config = {
             items: [
               {
                 label: 'Panaversity',
-                href: 'https://www.panaversity.com',
-              },
-              {
-                label: 'Course AI-100',
-                href: 'https://www.panaversity.com/ai-100',
+                href: 'https://panaversity.org/',
               },
             ],
           },
@@ -141,7 +137,7 @@ const config = {
             items: [
               {
                 label: 'GitHub',
-                href: 'https://github.com/your-username/Physical-AI-Humanoid-Robotics',
+                href: 'https://github.com/DanishHaji/Physical-AI-Humanoid-Robotics-Hackathon-I',
               },
             ],
           },
