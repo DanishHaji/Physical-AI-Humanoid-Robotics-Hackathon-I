@@ -45,16 +45,12 @@ class Settings(BaseSettings):
     GROQ_MAX_TOKENS: int = 500
     GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
 
-    # OpenAI API Configuration (Embeddings - FREE tier available)
-    # Sign up: https://platform.openai.com/api-keys
-    # Free tier: $5 credit (~10M tokens for embeddings)
-    OPENAI_API_KEY: str = ""  # Required for embeddings - get from OpenAI dashboard
-
-    # Groq Embeddings Configuration (API-based - FREE)
-    # Using Groq API instead of local models to reduce RAM usage
-    EMBEDDING_MODEL: str = "text-embedding-3-small"  # 1536 dimensions
-    EMBEDDING_DEVICE: str = "api"  # Using API instead of local model
-    VECTOR_SIZE: int = 1536  # Updated to match Groq embedding dimensions
+    # Local Embeddings Configuration (sentence-transformers - FREE)
+    # Using local models to avoid API dependencies and reduce costs
+    # No API key needed - runs locally with sentence-transformers
+    EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"  # 384 dimensions, fast and efficient
+    EMBEDDING_DEVICE: str = "cpu"  # Use "cuda" if GPU available
+    VECTOR_SIZE: int = 384  # Updated to match sentence-transformers embedding dimensions
 
     # Qdrant Cloud Configuration (Cloud Vector Database - FREE)
     # Sign up: https://cloud.qdrant.io
@@ -162,8 +158,8 @@ def validate_cloud_credentials() -> dict:
     # Check Groq API key
     status["groq"] = "configured" if settings.GROQ_API_KEY else "missing"
 
-    # Check OpenAI API key (for embeddings)
-    status["openai"] = "configured" if settings.OPENAI_API_KEY else "missing"
+    # No API key needed for embeddings (using local sentence-transformers)
+    status["embeddings"] = "local"  # Using local embeddings
 
     # Check Qdrant Cloud credentials
     status["qdrant_url"] = "configured" if settings.QDRANT_URL else "missing"
@@ -172,8 +168,9 @@ def validate_cloud_credentials() -> dict:
     # Check Neon database URL
     status["neon"] = "configured" if settings.NEON_DATABASE_URL else "missing"
 
-    # Overall status
-    all_configured = all(v == "configured" for v in status.values())
+    # Overall status - exclude embeddings from required services
+    required_services = {k: v for k, v in status.items() if k != "embeddings"}
+    all_configured = all(v == "configured" for v in required_services.values())
     status["all_services"] = "ready" if all_configured else "needs_setup"
 
     return status
@@ -189,8 +186,9 @@ def get_missing_credentials() -> List[str]:
     if not settings.GROQ_API_KEY:
         missing.append("GROQ_API_KEY - Sign up at https://console.groq.com")
 
-    if not settings.OPENAI_API_KEY:
-        missing.append("OPENAI_API_KEY - Sign up at https://platform.openai.com/api-keys")
+    # No OpenAI API key needed for embeddings (using local model)
+    # if not settings.OPENAI_API_KEY:
+    #     missing.append("OPENAI_API_KEY - Sign up at https://platform.openai.com/api-keys")
 
     if not settings.QDRANT_URL:
         missing.append("QDRANT_URL - Create cluster at https://cloud.qdrant.io")
@@ -213,14 +211,14 @@ if settings.DEBUG:
   Physical AI Textbook RAG - Cloud Free-Tier Stack
 ==========================================================
   LLM: Groq ({settings.GROQ_MODEL})
-  Embeddings: OpenAI {settings.EMBEDDING_MODEL} ({settings.VECTOR_SIZE}d)
+  Embeddings: Local sentence-transformers {settings.EMBEDDING_MODEL} ({settings.VECTOR_SIZE}d)
   Vector DB: Qdrant Cloud (1GB free)
   Database: Neon PostgreSQL (0.5GB free)
   Environment: {settings.ENVIRONMENT}
 ==========================================================
   Status: {credential_status['all_services'].upper()}
   - Groq API: {credential_status['groq']}
-  - OpenAI API: {credential_status['openai']}
+  - Embeddings: {credential_status['embeddings']}
   - Qdrant URL: {credential_status['qdrant_url']}
   - Qdrant Key: {credential_status['qdrant_key']}
   - Neon DB: {credential_status['neon']}

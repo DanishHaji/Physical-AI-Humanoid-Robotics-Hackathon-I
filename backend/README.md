@@ -107,7 +107,7 @@ Full API documentation: http://localhost:8000/docs
 - **Database**: Neon PostgreSQL (cloud, serverless, FREE)
 - **Vector DB**: Qdrant Cloud (1GB FREE)
 - **LLM**: Groq API (llama-3.1-8b-instant, FREE)
-- **Embeddings**: OpenAI API (text-embedding-3-small, cloud, FREE tier)
+- **Embeddings**: Local sentence-transformers (all-MiniLM-L6-v2, FREE)
 
 **Total Cost**: $0/month (100% free tier)
 
@@ -162,7 +162,7 @@ pytest
 - **Groq**: 30 requests/min
 - **Qdrant Cloud**: 1GB storage
 - **Neon PostgreSQL**: 0.5GB storage, 100 compute hours/month
-- **sentence-transformers**: Unlimited (local)
+- **Embeddings**: Unlimited (local sentence-transformers)
 
 ## Troubleshooting
 

@@ -12,16 +12,12 @@ uvicorn[standard]>=0.27.0
 python-multipart>=0.0.6
 
 # ================================================================
-# CLOUD FREE-TIER SERVICES (LLM + Embeddings + Vector DB + PostgreSQL)
+# CLOUD FREE-TIER SERVICES (LLM + Vector DB + PostgreSQL)
 # ================================================================
 
 # Groq API (Free LLM - llama-3.1-8b-instant)
 # https://console.groq.com - 30 req/min free tier
 groq>=0.30.0
-
-# OpenAI API (Free Embeddings - text-embedding-3-small)
-# https://platform.openai.com/api-keys - Free tier available
-openai>=1.10.0
 
 # Qdrant Cloud (Free Vector Database - 1GB free)
 # https://cloud.qdrant.io - 1GB cluster free tier
@@ -33,15 +29,19 @@ asyncpg>=0.29.0
 psycopg2-binary>=2.9.9  # For sync operations
 
 # ================================================================
-# EMBEDDINGS (USING GROQ API - REMOVED LOCAL MODELS)
+# EMBEDDINGS (USING LOCAL SENTENCE-TRANSFORMERS - REMOVED API)
 # ================================================================
 
-# Using Groq API for embeddings instead of local models
-# This reduces RAM usage from ~1GB to ~50MB for Render deployment
+# Using local sentence-transformers for embeddings to avoid API dependencies
+sentence-transformers>=2.6.0
+torch>=2.0.0
+transformers>=4.21.0
+numpy>=1.21.0
+
+# For token counting (local approximation)
 tiktoken>=0.7.0
 
-# REMOVED: sentence-transformers, torch, transformers (were using 500MB+ RAM)
-# Now using Groq API for embeddings (no local model loading)
+# REMOVED: OpenAI API dependency for embeddings (now using local models)
 
 # ================================================================
 # DATA VALIDATION & CONFIGURATION
