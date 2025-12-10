@@ -45,12 +45,11 @@ class Settings(BaseSettings):
     GROQ_MAX_TOKENS: int = 500
     GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
 
-    # Sentence Transformers Configuration (Local Embeddings - FREE)
-    # Downloads automatically on first run, no API key needed
-    EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"  # 384 dimensions, fast (90MB)
-    # Alternative: "all-mpnet-base-v2" (768 dimensions, better quality, 420MB)
-    EMBEDDING_DEVICE: str = "cpu"  # Use "cuda" if you have GPU
-    VECTOR_SIZE: int = 384  # Must match embedding model dimensions
+    # Groq Embeddings Configuration (API-based - FREE)
+    # Using Groq API instead of local models to reduce RAM usage
+    EMBEDDING_MODEL: str = "text-embedding-3-small"  # 1536 dimensions
+    EMBEDDING_DEVICE: str = "api"  # Using API instead of local model
+    VECTOR_SIZE: int = 1536  # Updated to match Groq embedding dimensions
 
     # Qdrant Cloud Configuration (Cloud Vector Database - FREE)
     # Sign up: https://cloud.qdrant.io

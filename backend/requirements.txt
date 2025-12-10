@@ -1,8 +1,9 @@
 # ================================================================
-# Physical AI Textbook - Backend Dependencies (CLOUD FREE-TIER)
+# Physical AI Textbook - Backend Dependencies (GROQ EMBEDDINGS)
 # ================================================================
-# Stack: Groq + Qdrant Cloud + Neon + sentence-transformers
+# Stack: Groq (LLM + Embeddings) + Qdrant Cloud + Neon PostgreSQL
 # Cost: $0/month (100% free tier services)
+# RAM: Optimized for Render free tier (512MB)
 # ================================================================
 
 # FastAPI Framework
@@ -11,10 +12,10 @@ uvicorn[standard]>=0.27.0
 python-multipart>=0.0.6
 
 # ================================================================
-# CLOUD FREE-TIER SERVICES (LLM + Vector DB + PostgreSQL)
+# CLOUD FREE-TIER SERVICES (LLM + Embeddings + Vector DB + PostgreSQL)
 # ================================================================
 
-# Groq API (Free LLM Inference - llama-3.1-8b-instant)
+# Groq API (Free LLM + Embeddings - llama-3.1-8b-instant + text-embedding-3-small)
 # https://console.groq.com - 30 req/min free tier
 groq>=0.30.0
 
@@ -28,13 +29,15 @@ asyncpg>=0.29.0
 psycopg2-binary>=2.9.9  # For sync operations
 
 # ================================================================
-# LOCAL EMBEDDINGS (FREE OFFLINE)
+# EMBEDDINGS (USING GROQ API - REMOVED LOCAL MODELS)
 # ================================================================
 
-# Sentence Transformers (Local embeddings generation)
-sentence-transformers>=2.3.1
-torch>=2.2.0             # Required for sentence-transformers
-transformers>=4.36.2
+# Using Groq API for embeddings instead of local models
+# This reduces RAM usage from ~1GB to ~50MB for Render deployment
+tiktoken>=0.7.0
+
+# REMOVED: sentence-transformers, torch, transformers (were using 500MB+ RAM)
+# Now using Groq API for embeddings (no local model loading)
 
 # ================================================================
 # DATA VALIDATION & CONFIGURATION
@@ -74,35 +77,40 @@ python-jose[cryptography]>=3.3.0  # JWT tokens
 # UTILITIES
 # ================================================================
 
-python-dateutil==2.8.2
+python-dateutil>=2.8.2
 
 # ================================================================
 # DEPLOYMENT NOTES
 # ================================================================
-#
+
+# RAM Usage Comparison:
+# - OLD: sentence-transformers + torch = ~1GB RAM
+# - NEW: Groq API only = ~50MB RAM
+# - Perfect for Render free tier (512MB limit)
+
 # 1. GROQ API (FREE):
 #    - Sign up: https://console.groq.com
 #    - Get API key from dashboard
-#    - Model: llama-3.1-8b-instant (free, fast)
+#    - Models: llama-3.1-8b-instant (LLM), text-embedding-3-small (embeddings)
 #    - Rate limit: 30 requests/min
-#
+
 # 2. QDRANT CLOUD (FREE):
 #    - Sign up: https://cloud.qdrant.io
 #    - Create free 1GB cluster
 #    - Get API key + cluster URL
 #    - Storage: 1GB vectors free
-#
+
 # 3. NEON POSTGRESQL (FREE):
 #    - Sign up: https://neon.tech
 #    - Create database (free tier)
 #    - Get connection string
 #    - Limits: 0.5GB storage, 100 compute hours/month
-#
+
 # 4. DEPLOY BACKEND (FREE):
-#    - Render.com: 750 hours/month free
+#    - Render.com: 750 hours/month free (512MB RAM limit)
 #    - Railway.app: $5 free credits/month
 #    - Fly.io: 3 shared-cpu VMs free
-#
+
 # ================================================================
 # INSTALLATION
 # ================================================================

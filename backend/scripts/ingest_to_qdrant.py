@@ -134,7 +134,7 @@ def ingest_chapter(file_path: Path, module: int, week: int, chapter_title: str):
         # Generate embeddings (batch processing for speed)
         print(f"  [*] Generating embeddings...")
         texts = [chunk['content'] for chunk in chunks]
-        embeddings = generate_embeddings_batch(texts, batch_size=32)
+        embeddings = generate_embeddings_batch(texts)
 
         # Add embeddings to chunks
         for chunk, embedding in zip(chunks, embeddings):
@@ -171,7 +171,7 @@ def ingest_all_chapters(docs_dir: Path = None):
     print(f"\nDocs directory: {docs_dir}")
     print(f"Chunk size: {settings.RAG_CHUNK_SIZE}")
     print(f"Chunk overlap: {settings.RAG_CHUNK_OVERLAP}")
-    print(f"Embedding model: {settings.EMBEDDING_MODEL}")
+    print(f"Embedding model: {settings.EMBEDDING_MODEL} ({settings.VECTOR_SIZE}d)")
     print()
 
     # Validate cloud credentials
