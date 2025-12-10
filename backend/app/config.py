@@ -90,7 +90,20 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
         "http://127.0.0.1:3001",  # Added for alternative format
         "http://127.0.0.1:8000",
+        # Add your Vercel domain here - will be overridden by environment variable
     ]
+
+    # Add Vercel domain from environment if available
+    @property
+    def all_allowed_origins(self) -> List[str]:
+        origins = self.ALLOWED_ORIGINS.copy()
+        vercel_domain = os.getenv("VERCEL_URL")
+        if vercel_domain:
+            origins.append(f"https://{vercel_domain}")
+        frontend_url = os.getenv("FRONTEND_URL")
+        if frontend_url and frontend_url not in origins:
+            origins.append(frontend_url)
+        return origins
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod

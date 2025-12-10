@@ -52,20 +52,13 @@ limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS middleware - explicitly allow development origins
-# This ensures the development setup works while we debug the settings issue
-all_origins = [
-    "http://localhost:3000",
-    "http://localhost:3001",  # Docusaurus dev server
-    "http://localhost:8000",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:3001",  # Alternative format
-    "http://127.0.0.1:8000",
-]
+# CORS middleware - allow origins from environment or default to development
+# This allows both development and production origins
+allowed_origins = settings.all_allowed_origins
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=all_origins,
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
