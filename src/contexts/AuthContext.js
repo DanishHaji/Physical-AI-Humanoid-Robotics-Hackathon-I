@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 
-const API_URL = "http://localhost:8000";
+const API_URL = "https://physical-ai-textbook-api-i4ug.onrender.com";
 
 const AuthContext = createContext(null);
 

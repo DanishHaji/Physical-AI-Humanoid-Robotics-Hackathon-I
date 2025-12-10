@@ -226,34 +226,10 @@ def ingest_all_chapters(docs_dir: Path = None):
             'title': 'ROS 2 Fundamentals'
         },
         {
-            'file': 'module-01-ros2/week-03-ros2-programming.md',
-            'module': 1,
-            'week': 3,
-            'title': 'ROS 2 Programming'
-        },
-        {
-            'file': 'module-02-digital-twin/week-04-urdf-modeling.md',
-            'module': 2,
-            'week': 4,
-            'title': 'URDF Robot Modeling'
-        },
-        {
-            'file': 'module-02-digital-twin/week-05-digital-twin-intro.md',
+            'file': 'module-02-digital-twin/week-05-digital-twin.md',
             'module': 2,
             'week': 5,
-            'title': 'Digital Twin Introduction'
-        },
-        {
-            'file': 'module-02-digital-twin/week-06-gazebo-unity.md',
-            'module': 2,
-            'week': 6,
-            'title': 'Gazebo & Unity Simulation'
-        },
-        {
-            'file': 'module-03-isaac-sim/week-07-isaac-overview.md',
-            'module': 3,
-            'week': 7,
-            'title': 'NVIDIA Isaac Overview'
+            'title': 'Digital Twin Simulation'
         },
         {
             'file': 'module-03-isaac-sim/week-08-isaac-sim.md',
@@ -262,34 +238,40 @@ def ingest_all_chapters(docs_dir: Path = None):
             'title': 'NVIDIA Isaac Sim'
         },
         {
-            'file': 'module-03-isaac-sim/week-09-isaac-lab.md',
-            'module': 3,
-            'week': 9,
-            'title': 'NVIDIA Isaac Lab'
-        },
-        {
-            'file': 'module-04-vla/week-10-vla-intro.md',
-            'module': 4,
-            'week': 10,
-            'title': 'Vision-Language-Action Introduction'
-        },
-        {
             'file': 'module-04-vla/week-11-vla-systems.md',
             'module': 4,
             'week': 11,
             'title': 'VLA Systems Implementation'
         },
         {
-            'file': 'module-04-vla/week-12-deployment.md',
-            'module': 4,
-            'week': 12,
-            'title': 'Real-World Deployment'
-        },
-        {
             'file': 'capstone/week-13-capstone-project.md',
             'module': 4,
             'week': 13,
             'title': 'Capstone Integration Project'
+        },
+        {
+            'file': 'appendices/glossary.md',
+            'module': 5,
+            'week': 14,
+            'title': 'Glossary of Terms'
+        },
+        {
+            'file': 'appendices/hardware-setup.md',
+            'module': 5,
+            'week': 15,
+            'title': 'Hardware Setup Guide'
+        },
+        {
+            'file': 'appendices/troubleshooting.md',
+            'module': 5,
+            'week': 16,
+            'title': 'Troubleshooting Guide'
+        },
+        {
+            'file': 'intro.md',
+            'module': 0,
+            'week': 0,
+            'title': 'Introduction to the Textbook'
         },
     ]
 

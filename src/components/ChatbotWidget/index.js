@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styles from './styles.module.css';
 
-const API_URL = "http://localhost:8000";
+const API_URL = "https://physical-ai-textbook-api-i4ug.onrender.com";
 
 // Suggested questions for users (detailed for better matching)
 const SUGGESTED_QUESTIONS = [
@@ -122,7 +122,7 @@ export default function ChatbotWidget() {
     } catch (error) {
       const errorMessage = {
         role: 'assistant',
-        content: 'Connection error. Please ensure the backend is running on port 8000.'
+        content: 'Connection error. Please check your connection to the backend service.'
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import styles from './styles.module.css';
 
-const API_URL = "http://localhost:8000";
+const API_URL = "https://physical-ai-textbook-api-i4ug.onrender.com";
 
 interface Message {
   role: 'user' | 'assistant';
@@ -50,7 +50,7 @@ export default function ChatbotWidget() {
     } catch (error) {
       const errorMessage: Message = {
         role: 'assistant',
-        content: 'Error connecting to the chatbot. Please make sure the backend is running on http://localhost:8000'
+        content: 'Error connecting to the AI textbook assistant. Please check your connection to the backend service.'
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
@@ -87,6 +87,7 @@ export default function ChatbotWidget() {
                 value={mode}
                 onChange={(e) => setMode(e.target.value as any)}
                 className={styles.modeDropdown}
+                aria-label="Select chat mode"
               >
                 <option value="auto">Auto</option>
                 <option value="explain">Explain 💡</option>
