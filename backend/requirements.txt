@@ -1,7 +1,7 @@
 # ================================================================
-# Physical AI Textbook - Backend Dependencies (GROQ EMBEDDINGS)
+# Physical AI Textbook - Backend Dependencies (GROQ + OPENAI)
 # ================================================================
-# Stack: Groq (LLM + Embeddings) + Qdrant Cloud + Neon PostgreSQL
+# Stack: Groq (LLM) + OpenAI (Embeddings) + Qdrant Cloud + Neon PostgreSQL
 # Cost: $0/month (100% free tier services)
 # RAM: Optimized for Render free tier (512MB)
 # ================================================================
@@ -15,9 +15,13 @@ python-multipart>=0.0.6
 # CLOUD FREE-TIER SERVICES (LLM + Embeddings + Vector DB + PostgreSQL)
 # ================================================================
 
-# Groq API (Free LLM + Embeddings - llama-3.1-8b-instant + text-embedding-3-small)
+# Groq API (Free LLM - llama-3.1-8b-instant)
 # https://console.groq.com - 30 req/min free tier
 groq>=0.30.0
+
+# OpenAI API (Free Embeddings - text-embedding-3-small)
+# https://platform.openai.com/api-keys - Free tier available
+openai>=1.10.0
 
 # Qdrant Cloud (Free Vector Database - 1GB free)
 # https://cloud.qdrant.io - 1GB cluster free tier
@@ -91,22 +95,28 @@ python-dateutil>=2.8.2
 # 1. GROQ API (FREE):
 #    - Sign up: https://console.groq.com
 #    - Get API key from dashboard
-#    - Models: llama-3.1-8b-instant (LLM), text-embedding-3-small (embeddings)
+#    - Models: llama-3.1-8b-instant (LLM)
 #    - Rate limit: 30 requests/min
 
-# 2. QDRANT CLOUD (FREE):
+# 2. OPENAI API (FREE):
+#    - Sign up: https://platform.openai.com/api-keys
+#    - Get API key from dashboard
+#    - Models: text-embedding-3-small (embeddings)
+#    - Free tier: $5 credit (~10M tokens)
+
+# 3. QDRANT CLOUD (FREE):
 #    - Sign up: https://cloud.qdrant.io
 #    - Create free 1GB cluster
 #    - Get API key + cluster URL
 #    - Storage: 1GB vectors free
 
-# 3. NEON POSTGRESQL (FREE):
+# 4. NEON POSTGRESQL (FREE):
 #    - Sign up: https://neon.tech
 #    - Create database (free tier)
 #    - Get connection string
 #    - Limits: 0.5GB storage, 100 compute hours/month
 
-# 4. DEPLOY BACKEND (FREE):
+# 5. DEPLOY BACKEND (FREE):
 #    - Render.com: 750 hours/month free (512MB RAM limit)
 #    - Railway.app: $5 free credits/month
 #    - Fly.io: 3 shared-cpu VMs free

@@ -1,11 +1,11 @@
 """
-Embeddings Module (Using Groq API)
-Replaces local sentence-transformers with Groq API embeddings for Render deployment
+Embeddings Module (Using OpenAI API)
+Uses OpenAI text-embedding-3-small for semantic search embeddings
 """
 import os
 from typing import List
 import structlog
-from groq import Groq
+from openai import OpenAI
 from .config import settings
 
 logger = structlog.get_logger()
@@ -28,16 +28,18 @@ def count_tokens(text: str) -> int:
     """
     return len(encoding.encode(text))
 
-class GroqEmbeddingsClient:
+class OpenAIEmbeddingsClient:
     def __init__(self):
-        self.client = Groq(api_key=settings.GROQ_API_KEY)
-        self.model = "text-embedding-3-small"  # Using the embedding model
-        # Update vector size to match Groq's embedding dimensions
-        settings.VECTOR_SIZE = 1536  # text-embedding-3-small produces 1536-dim vectors
+        # Use OpenAI API for embeddings (not Groq, as Groq doesn't provide embedding models)
+        self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        self.model = "text-embedding-3-small"  # OpenAI embedding model
+        # Verify vector size matches OpenAI's embedding dimensions
+        if settings.VECTOR_SIZE != 1536:
+            logger.warning(f"Vector size mismatch: config={settings.VECTOR_SIZE}, expected=1536")
 
     def get_embedding(self, text: str) -> List[float]:
         """
-        Generate embedding for text using Groq API
+        Generate embedding for text using OpenAI API
 
         Args:
             text: Input text to embed
@@ -52,12 +54,12 @@ class GroqEmbeddingsClient:
             )
             return response.data[0].embedding
         except Exception as e:
-            logger.error("Error generating embedding with Groq", error=str(e))
+            logger.error("Error generating embedding with OpenAI", error=str(e))
             raise
 
     def get_embeddings_batch(self, texts: List[str]) -> List[List[float]]:
         """
-        Generate embeddings for multiple texts using Groq API
+        Generate embeddings for multiple texts using OpenAI API
 
         Args:
             texts: List of input texts to embed
@@ -72,7 +74,7 @@ class GroqEmbeddingsClient:
             )
             return [item.embedding for item in response.data]
         except Exception as e:
-            logger.error("Error generating embeddings batch with Groq", error=str(e))
+            logger.error("Error generating embeddings batch with OpenAI", error=str(e))
             raise
 
 # Global instance
@@ -81,12 +83,12 @@ _embeddings_client = None
 def get_embeddings_client():
     global _embeddings_client
     if _embeddings_client is None:
-        _embeddings_client = GroqEmbeddingsClient()
+        _embeddings_client = OpenAIEmbeddingsClient()
     return _embeddings_client
 
 def generate_embedding(text: str) -> List[float]:
     """
-    Generate embedding for a single text using Groq API
+    Generate embedding for a single text using OpenAI API
 
     Args:
         text: Input text to embed
@@ -99,7 +101,7 @@ def generate_embedding(text: str) -> List[float]:
 
 def generate_embeddings_batch(texts: List[str]) -> List[List[float]]:
     """
-    Generate embeddings for multiple texts using Groq API
+    Generate embeddings for multiple texts using OpenAI API
 
     Args:
         texts: List of input texts to embed
@@ -112,7 +114,7 @@ def generate_embeddings_batch(texts: List[str]) -> List[List[float]]:
 
 def test_embedding_connection() -> bool:
     """
-    Test if Groq embedding API is accessible
+    Test if OpenAI embedding API is accessible
 
     Returns:
         bool: True if API is accessible, False otherwise
