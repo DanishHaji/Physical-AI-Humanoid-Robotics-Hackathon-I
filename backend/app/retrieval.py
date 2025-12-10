@@ -294,7 +294,7 @@ def extract_citations(chunks: List[Dict]) -> List[Citation]:
     return citations
 
 
-def test_qdrant_connection() -> bool:
+async def test_qdrant_connection() -> bool:
     """
     Test Qdrant Cloud connection
 
@@ -303,7 +303,7 @@ def test_qdrant_connection() -> bool:
     """
     try:
         if not qdrant_client:
-            init_qdrant_client()
+            await init_qdrant_client()
 
         return qdrant_client.test_connection()
 

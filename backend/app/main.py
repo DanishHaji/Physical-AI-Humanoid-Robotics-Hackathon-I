@@ -121,7 +121,7 @@ async def health_check():
 
     # Check Qdrant
     try:
-        qdrant_ok = test_qdrant_connection()
+        qdrant_ok = await test_qdrant_connection()
         services["qdrant"] = "operational" if qdrant_ok else "down"
     except:
         services["qdrant"] = "down"
